@@ -1,92 +1,146 @@
-# 2023-group-02
+# Group 02 
 
+# Instructions
 
+**Requirements**
 
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
+```sh
+git >= 2.0.0
+docker >= 1.12.0
+SSH key pair, with the public key added to Chalmers Gitlab 
 ```
-cd existing_repo
-git remote add origin https://git.chalmers.se/courses/dit638/students/2023-group-02.git
-git branch -M main
-git push -uf origin main
+## How to clone?
+Create a directory, open the terminal, navigate to the newly created directory and run:
+```sh
+git clone git@git.chalmers.se:courses/dit638/students/2023-group-02.git
 ```
 
-## Integrate with your tools
+## How to build?
 
-- [ ] [Set up project integrations](https://git.chalmers.se/courses/dit638/students/2023-group-02/-/settings/integrations)
+Open terminal and run the command in the 2023-group-02 repo folder. 
+```sh
+docker build -t CID/example:latest -f Dockerfile .
+```
+If the build process is successful, you can run the resulting image inside a container by running the following command:
+```sh
+docker run --rm CID/example:latest 42
+```
 
-## Collaborate with your team
+# How to work with Git and GitLab
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+## How to make a commit?
 
-## Test and Deploy
+Make sure to add your email and user name first by running the below commands 
+```sh
+git config --global user.email "you@example.com"
+git config --global user.name “your name”
+```
+Make sure you are on the right branch and that your code is functional then run
 
-Use the built-in continuous integration in GitLab.
+```sh
+git status //check the current staged files
+git add . //stage all changed files
+git pull //make sure the local branch is up to date with the remote
+git commit -m “your message” -m “your comment” 
+git push // push to remote branch 
+```
+Note: You should inform people to pull your changes.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
 
-***
 
-# Editing this README
+## How to write meaningful commit messages?
+- Keep messages short and descriptive 
+- Refer to the issue by including it at the beginning of the commit message
+- Add comments to make additional clarifications 
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Note: refer to the **commit message structure** section
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## How to work on a feature?
+- See open issues / create an issue 
+- Create a remote branch for that feature/issue and check out to it locally 
+- Create tests (when applicable)
+- Make small and well documented changes, multiple commits are encouraged instead of multiple changes in single commit 
+- Do not push not working code to the remote branch before opening a merge request  
+- Make sure to update the branch often in case the root branch changes
+- Make sure the tests pass on the branch before creating a PR
+- Create a PR as soon as the tests pass and the code is functional and complete (opt remind people to review your PR)
+- Make necessary changes in case you receive feedback 
+- To change between branches, you need to make sure all changes on current branch are committed or stashed 
+- Close the issue if the Definition of Done is met / open new branch to continue solving the issue 
 
-## Name
-Choose a self-explaining name for your project.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## How to create a merge request?
+**Rules:**
+- Merge requests should only be made if they intend to close an issue or multiple issues. 
+- They should contain the keyword “Closes” and the issue number next to it (above the merge request description) 
+- Merge requests should have a description that includes what features/issues were implemented, how and why.
+- Merge requests should be approved by a team member in order for the merge to happen. 
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+**Instructions**
+- Make sure the local branch is up to date with the remote   
+- Make sure your latest changes are pushed 
+- Make sure the tests are passing
+- Make sure the branch is updated with the latest root 
+- Checkout locally to the desired branch you want to merge with: 
+```sh
+git checkout <name of branch to be merged into>
+git pull
+git merge <name of the branch to be merged> 
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+# Commit message structure
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+**Subject** - This should be a short, specific and meaningful “title” for the commit that doesn’t contain a period at the end and starts like a regular title(i.e with an Uppercase letter). Titles that are vague and ambiguous are not acceptable(i.e various fixes).
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Rules:
+- Describe why a change is being made.
+- Limit the subject line to 50 characters
+- Use the imperative mood in the subject line
+- Refer to issue:  #issueNumber
+- Do not end the subject line with a period
+- The first word should be the type (imperative)
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Types:
+- **fix**: use when patching a bug 
+- **close #issueNumber**:  automatically close the issue 
+- **add**: adding new files/directories
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+**Body**  - Use to explain what and why you have done something. In most cases, you can leave out details about how a change has been made.
+- Separate subject from body with a blank line
+- Capitalize each paragraph
+- A longer commit body MAY be provided after the short descri­ption. The body MUST begin one blank line after the descri­ption.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+# How is our team working on adding new feature 
+
+- Asses the current state of the project and prioritize the features to be developed based on importance, complexity and necessary resource allocation
+- Split the high priority feature into smaller units and create related issues 
+- Keep de-prioritized features in the backlog in case we will have enough time for them in the future
+- Assign issues fairly
+- Keep track of the progress frequently by checking the related branches and by attending stand up meetings
+- Close issues once feature is fully developed (by meeting the Definition of Done)
+- Add release tags and add them when closing the merge requests
+
+
+# How is our team working to fix unexpected behavior on existing features?
+- The severity of the bug is assessed when a team member(s) recognizes any unexpected behaviour in the already existing features.
+- Along with the severity, we will also discuss the desired or expected behavior, since it may not be clear at first sight
+- Once the severity and desired outcome has been discussed, an issue will be opened on GitLab and team members will be immediately allocated to them
+- Once the expected behavior is met, a merge request will be opened and the issue will be closed after review
+
 
 ## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+Gabriela Istrate - @istrate 
+
+Ergi Senja - @ergi
+
+Ansis Plepis - @ansis
+
+Jens Pehrsson - @jenspeh
+
+Aditya Nair - @adityana
+
 
 ## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This project uses license GNU GPLv3.
