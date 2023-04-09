@@ -1,5 +1,7 @@
 # Group 02 
 
+![pipeline_status](https://git.chalmers.se/courses/dit638/students/2023-group-02/badges/main/pipeline.svg)
+
 # Instructions
 
 **Requirements**
