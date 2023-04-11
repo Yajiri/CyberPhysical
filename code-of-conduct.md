@@ -20,7 +20,17 @@
 - We will use Discord as our main channel of communication.
 - Meetings will be set up a few days in advance each week, and time will be allocated to plan and divide the work for each increment.
 
-## 5. Conflict Resolution
+## 5. Conflict Prevention:
+We will all commit to the following rules and accept that we will be held accountable for:
+- Ensure all of us feel welcomed to bring their ideas forward and speak their mind in a respectful way.
+- Make sure information is shared across all team members and strive for conceptual integrity
+- Refrain from judgement - we are all on the same team working for the same goal
+- Speak out when we feel disrespected or misunderstood 
+- Be mindful of each other's workload and be willing to exchange/take on tasks when the distribution is unbalanced
+- Make genuine efforts to solve our tasks and ask for help early 
+
+
+## 6. Conflict Resolution
 We will assume each person takes responsibility for their work and adheres to a common set of rules such as:
 - If a team member knows they will be unable to complete their tasks, it is their responsibility to inform the team, so that team resources can be allocated accordingly.
 - If a team member feels like the workload is not distributed fairly, it is their responsibility to bring it up before the deadline of the respective feature/increment.
