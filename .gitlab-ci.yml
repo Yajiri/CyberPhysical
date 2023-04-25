@@ -39,7 +39,6 @@ build:
     - docker-build
   stage: build
   script:
-    - cd src/PrimeChecker
     - docker build -f Dockerfile .
   rules:
     - if: "$CI_COMMIT_BRANCH || $CI_COMMIT_TAG"
@@ -50,7 +49,6 @@ release:
     - docker-build
   stage: deploy
   script:
-    - cd src/PrimeChecker
     - docker build -f Dockerfile -t "$CI_REGISTRY_IMAGE":"$CI_COMMIT_TAG" .
     - docker push "$CI_REGISTRY_IMAGE":"$CI_COMMIT_TAG"
   needs: ["build"]
