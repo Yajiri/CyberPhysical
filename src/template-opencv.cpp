@@ -44,11 +44,11 @@ class Rect {
         int y;
         int width;
         int height;
-        Rect(int x, int y, int width, int height) {
-            this->x = x;
-            this->y = y;
-            this->width = width;
-            this->height = height;
+        Rect(int pX, int pY, int pWidth, int pHeight) {
+            this->x = pX;
+            this->y = pY;
+            this->width = pWidth;
+            this->height = pHeight;
         }
 };
 
