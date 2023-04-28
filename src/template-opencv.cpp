@@ -38,8 +38,22 @@ cv::Mat filterImage(cv::Mat sourceImage) {
     return filteredImage;
 }
 
+class Rect {
+    public:
+        int x;
+        int y;
+        int width;
+        int height;
+        Rect(int x, int y, int width, int height) {
+            this->x = x;
+            this->y = y;
+            this->width = width;
+            this->height = height;
+        }
+};
+
 // std::vector<int, int, int, int> detectCones(cv::Mat sourceImage) {
-std::vector<std::tuple<int, int, int, int>> detectCones(cv::Mat sourceImage) {
+std::vector<Rect> detectCones(cv::Mat sourceImage) {
     cv::Mat grayImage, binaryImage, morphedImage;
 
     // Convert `sourceImage` to grayscale and store it in `grayImage`
@@ -67,12 +81,12 @@ std::vector<std::tuple<int, int, int, int>> detectCones(cv::Mat sourceImage) {
         }
     }
 
-    std::vector<std::tuple<int, int, int, int>> boundingRectangles;
+    std::vector<Rect> boundingRectangles;
 
     // Draw bounding boxes
     for (const auto& contour : filteredContours) {
         cv::Rect boundingRect = cv::boundingRect(contour);
-        boundingRectangles.push_back({ boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height });
+        boundingRectangles.push_back(Rect(boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height));
 
         cv::rectangle(sourceImage, boundingRect, cv::Scalar(0, 0, 255), 2);
     }
@@ -148,14 +162,17 @@ int32_t main(int32_t argc, char **argv) {
                 }
 
                 cv::Mat filteredImage = filterImage(img);
-                std::vector<std::tuple<int, int, int, int>> cones = detectCones(filteredImage);
-                for (auto& cone : cones) {
-                    std::cout << "x=;" << std::get<0>(cone) << ";y=" << std::get<1>(cone) << ";width=" << std::get<2>(cone) << ";height=" << std::get<3>(cone) << std::endl;
-                }
+                std::vector<Rect> cones = detectCones(filteredImage);
                 // Display image on your screen.
                 if (VERBOSE) {
                     cv::imshow(sharedMemory->name().c_str(), filteredImage);
                     cv::waitKey(1);
+                    int coneIndex = 1;
+                    for (auto& cone : cones) {
+                        std::cout << "Detected cone #" << coneIndex << ": ";
+                        std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
+                        coneIndex++;
+                    }
                 }
             }
         }
