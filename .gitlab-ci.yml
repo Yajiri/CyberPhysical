@@ -39,6 +39,7 @@ build:
     - docker-build
   stage: build
   script:
+    - docker buildx version
     - DOCKER_CLI_EXPERIMENTAL=enabled docker buildx create --name mybuilder --use
     - DOCKER_CLI_EXPERIMENTAL=enabled docker buildx inspect --bootstrap
     - DOCKER_CLI_EXPERIMENTAL=enabled docker buildx build --platform linux/amd64,linux/arm/v7 -t my-application --push .
