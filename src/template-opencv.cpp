@@ -148,6 +148,7 @@ int32_t main(int32_t argc, char **argv) {
                 }
 
                 cv::Mat filteredImage = filterImage(img);
+                cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
                 std::vector<std::tuple<int, int, int, int>> cones = detectCones(filteredImage);
                 for (auto& cone : cones) {
                     std::cout << "x=;" << std::get<0>(cone) << ";y=" << std::get<1>(cone) << ";width=" << std::get<2>(cone) << ";height=" << std::get<3>(cone) << std::endl;
