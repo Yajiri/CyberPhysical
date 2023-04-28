@@ -24,6 +24,76 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+cv::Scalar FILTER_LOWER = cv::Scalar(15, 62, 139);
+cv::Scalar FILTER_UPPER = cv::Scalar(40, 255, 255); 
+// cv::Scalar FILTER_LOWER(9, 0, 147);
+// cv::Scalar FILTER_UPPER(76, 255, 255);
+
+// Filters and image out-place according to HSV bounds and returns it.
+cv::Mat filterImage(cv::Mat sourceImage) {
+    cv::Mat imgHSV, filteredImage, mask;
+    cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
+    cv::inRange(imgHSV, FILTER_LOWER, FILTER_UPPER, mask);
+    sourceImage.copyTo(filteredImage, mask);
+    return filteredImage;
+}
+
+class Rect {
+    public:
+        int x;
+        int y;
+        int width;
+        int height;
+        Rect(int pX, int pY, int pWidth, int pHeight) {
+            this->x = pX;
+            this->y = pY;
+            this->width = pWidth;
+            this->height = pHeight;
+        }
+};
+
+// std::vector<int, int, int, int> detectCones(cv::Mat sourceImage) {
+std::vector<Rect> detectCones(cv::Mat sourceImage) {
+    cv::Mat grayImage, binaryImage, morphedImage;
+
+    // Convert `sourceImage` to grayscale and store it in `grayImage`
+    cv::cvtColor(sourceImage, grayImage, cv::COLOR_BGR2GRAY);
+
+    // Apply threshold 
+    cv::threshold(grayImage, binaryImage, 0, 255, cv::THRESH_BINARY);
+
+    // Perform morphological operations
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
+    cv::erode(binaryImage, morphedImage, kernel);
+    cv::dilate(morphedImage, morphedImage, kernel);
+
+    // Find all contours
+    std::vector<std::vector<cv::Point>> contours;
+    std::vector<cv::Vec4i> hierarchy;
+    cv::findContours(morphedImage, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+
+    // Filter contours by area
+    std::vector<std::vector<cv::Point>> filteredContours;
+    for (const auto& contour : contours) {
+        double area = cv::contourArea(contour);
+        if (area > 10) {
+            filteredContours.push_back(contour);
+        }
+    }
+
+    std::vector<Rect> boundingRectangles;
+
+    // Draw bounding boxes
+    for (const auto& contour : filteredContours) {
+        cv::Rect boundingRect = cv::boundingRect(contour);
+        boundingRectangles.push_back(Rect(boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height));
+
+        cv::rectangle(sourceImage, boundingRect, cv::Scalar(0, 0, 255), 2);
+    }
+
+    return boundingRectangles;
+}
+
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
     // Parse the command line parameters as we require the user to specify some mandatory information on startup.
@@ -83,12 +153,7 @@ int32_t main(int32_t argc, char **argv) {
                     cv::Mat wrapped(HEIGHT, WIDTH, CV_8UC4, sharedMemory->data());
                     img = wrapped.clone();
                 }
-                // TODO: Here, you can add some code to check the sampleTimePoint when the current frame was captured.
                 sharedMemory->unlock();
-
-                // TODO: Do something with the frame.
-                // Example: Draw a red rectangle and display image.
-                cv::rectangle(img, cv::Point(50, 50), cv::Point(100, 100), cv::Scalar(0,0,255));
 
                 // If you want to access the latest received ground steering, don't forget to lock the mutex:
                 {
@@ -96,10 +161,20 @@ int32_t main(int32_t argc, char **argv) {
                     std::cout << "main: groundSteering = " << gsr.groundSteering() << std::endl;
                 }
 
+                cv::Mat filteredImage = filterImage(img);
+                std::vector<Rect> cones = detectCones(filteredImage);
+                cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
+
                 // Display image on your screen.
                 if (VERBOSE) {
-                    cv::imshow(sharedMemory->name().c_str(), img);
+                    cv::imshow(sharedMemory->name().c_str(), filteredImage);
                     cv::waitKey(1);
+                    int coneIndex = 1;
+                    for (auto& cone : cones) {
+                        std::cout << "Detected cone #" << coneIndex << ": ";
+                        std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
+                        coneIndex++;
+                    }
                 }
             }
         }

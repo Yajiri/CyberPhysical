@@ -1,0 +1,47 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "OpenDLV Vehicle View: Start streaming camera",
+			"command": "docker",
+			"type": "process",
+			"args": [
+				"run",
+				"--rm",
+				"-i",
+				"--init",
+				"--net=host",
+				"--name=opendlv-vehicle-view",
+				"-v",
+				"${workspaceFolder}/recordings:/opt/vehicle-view/recordings",
+				"-v",
+				"/var/run/docker.sock:/var/run/docker.sock",
+				"-p",
+				"8081:8081",
+				"chrberger/opendlv-vehicle-view:v0.0.64"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}/recordings"
+			}
+		},
+		{
+			"label": "H264 Decoder: Start decoding buffer",
+			"command": "docker",
+			"type": "process",
+			"args": [
+				"run",
+				"--rm",
+				"-ti",
+				"--net=host",
+				"--ipc=host",
+				"-e",
+				"DISPLAY=$DISPLAY",
+				"-v",
+				"/tmp:/tmp",
+				"h264decoder:v0.0.5",
+				"--cid=253",
+				"--name=img"
+			]
+		}
+	]
+}
