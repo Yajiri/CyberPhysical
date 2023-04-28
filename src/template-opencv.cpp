@@ -163,6 +163,8 @@ int32_t main(int32_t argc, char **argv) {
 
                 cv::Mat filteredImage = filterImage(img);
                 std::vector<Rect> cones = detectCones(filteredImage);
+                cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
+
                 // Display image on your screen.
                 if (VERBOSE) {
                     cv::imshow(sharedMemory->name().c_str(), filteredImage);
