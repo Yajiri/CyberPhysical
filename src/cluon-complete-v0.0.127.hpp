@@ -19,7 +19,7 @@
 //
 #ifndef LINB_ANY_HPP
 #define LINB_ANY_HPP
-#pragma once
+// #pragma once
 #include <typeinfo>
 #include <type_traits>
 #include <stdexcept>

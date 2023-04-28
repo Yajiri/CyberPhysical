@@ -24,8 +24,17 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-// Include the steering solution
-#include "Vision.hpp";
+cv::Scalar FILTER_LOWER = cv::Scalar(15, 62, 139);
+cv::Scalar FILTER_UPPER = cv::Scalar(40, 255, 255); 
+
+// Filters and image out-place according to HSV bounds and returns it.
+cv::Mat filterImage(cv::Mat sourceImage) {
+    cv::Mat imgHSV, filteredImage, mask;
+    cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
+    cv::inRange(imgHSV, FILTER_LOWER, FILTER_UPPER, mask);
+    sourceImage.copyTo(filteredImage, mask);
+    return filteredImage;
+}
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
