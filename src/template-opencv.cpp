@@ -26,6 +26,8 @@
 
 cv::Scalar FILTER_LOWER = cv::Scalar(15, 62, 139);
 cv::Scalar FILTER_UPPER = cv::Scalar(40, 255, 255); 
+// cv::Scalar FILTER_LOWER(9, 0, 147);
+// cv::Scalar FILTER_UPPER(76, 255, 255);
 
 // Filters and image out-place according to HSV bounds and returns it.
 cv::Mat filterImage(cv::Mat sourceImage) {
@@ -34,6 +36,48 @@ cv::Mat filterImage(cv::Mat sourceImage) {
     cv::inRange(imgHSV, FILTER_LOWER, FILTER_UPPER, mask);
     sourceImage.copyTo(filteredImage, mask);
     return filteredImage;
+}
+
+// std::vector<int, int, int, int> detectCones(cv::Mat sourceImage) {
+std::vector<std::tuple<int, int, int, int>> detectCones(cv::Mat sourceImage) {
+    cv::Mat grayImage, binaryImage, morphedImage;
+
+    // Convert `sourceImage` to grayscale and store it in `grayImage`
+    cv::cvtColor(sourceImage, grayImage, cv::COLOR_BGR2GRAY);
+
+    // Apply threshold 
+    cv::threshold(grayImage, binaryImage, 0, 255, cv::THRESH_BINARY);
+
+    // Perform morphological operations
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
+    cv::erode(binaryImage, morphedImage, kernel);
+    cv::dilate(morphedImage, morphedImage, kernel);
+
+    // Find all contours
+    std::vector<std::vector<cv::Point>> contours;
+    std::vector<cv::Vec4i> hierarchy;
+    cv::findContours(morphedImage, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+
+    // Filter contours by area
+    std::vector<std::vector<cv::Point>> filteredContours;
+    for (const auto& contour : contours) {
+        double area = cv::contourArea(contour);
+        if (area > 10) {
+            filteredContours.push_back(contour);
+        }
+    }
+
+    std::vector<std::tuple<int, int, int, int>> boundingRectangles;
+
+    // Draw bounding boxes
+    for (const auto& contour : filteredContours) {
+        cv::Rect boundingRect = cv::boundingRect(contour);
+        boundingRectangles.push_back({ boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height });
+
+        cv::rectangle(sourceImage, boundingRect, cv::Scalar(0, 0, 255), 2);
+    }
+
+    return boundingRectangles;
 }
 
 int32_t main(int32_t argc, char **argv) {
@@ -104,7 +148,10 @@ int32_t main(int32_t argc, char **argv) {
                 }
 
                 cv::Mat filteredImage = filterImage(img);
-
+                std::vector<std::tuple<int, int, int, int>> cones = detectCones(filteredImage);
+                for (auto& cone : cones) {
+                    std::cout << "x=;" << std::get<0>(cone) << ";y=" << std::get<1>(cone) << ";width=" << std::get<2>(cone) << ";height=" << std::get<3>(cone) << std::endl;
+                }
                 // Display image on your screen.
                 if (VERBOSE) {
                     cv::imshow(sharedMemory->name().c_str(), filteredImage);
