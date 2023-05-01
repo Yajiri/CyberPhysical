@@ -47,7 +47,7 @@ build:
     - docker-build
   stage: build
   script:
-    - docker build group2/example:latest -f Dockerfile .
+    - docker build -t group2/example:latest -f Dockerfile .
   rules:
     - if: "$CI_COMMIT_BRANCH || $CI_COMMIT_TAG"
 
