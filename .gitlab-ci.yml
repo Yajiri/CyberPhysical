@@ -64,7 +64,7 @@ release:
     - docker buildx create --use --driver docker-container --name ${BUILDX_BUILDER} --platform=${BUILDX_PLATFORM}
     - docker buildx inspect --bootstrap ${BUILDX_BUILDER}
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - DOCKER_CLI_EXPERIMENTAL=enabled docker buildx build --platform=${BUILDX_PLATFORM} --no-cache -t "$IMAGE":"$CI_COMMIT_TAG" --push --provenance=false .
+    - docker buildx build --platform=${BUILDX_PLATFORM} --no-cache -t "$IMAGE":"$CI_COMMIT_TAG" --push .
     #- docker build -f Dockerfile -t "$CI_REGISTRY_IMAGE":"$CI_COMMIT_TAG" .
     #- docker push "$CI_REGISTRY_IMAGE":"$CI_COMMIT_TAG"
   needs: ["build"]
