@@ -29,7 +29,7 @@ RUN apt-get install -y --no-install-recommends \
         ca-certificates \
         cmake \
         build-essential \
-        libopencv-dev
+        libopencv-dev &&
     apt-get upgrade
 
 # Include this source tree and compile the sources
@@ -54,7 +54,7 @@ RUN apt-get update -y && \
 RUN apt-get install -y --no-install-recommends \
         libopencv-core3.2 \
         libopencv-highgui3.2 \
-        libopencv-imgproc3.2 
+        libopencv-imgproc3.2 &&
     apt-get upgrade
 
 WORKDIR /usr/bin
