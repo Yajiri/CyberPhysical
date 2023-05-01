@@ -29,8 +29,8 @@ RUN apt-get install -y --no-install-recommends \
         ca-certificates \
         cmake \
         build-essential \
-        libopencv-dev &&
-    apt-get upgrade
+        libopencv-dev && \
+    apt-get upgrade -y
 
 # Include this source tree and compile the sources
 ADD . /opt/sources
@@ -54,8 +54,8 @@ RUN apt-get update -y && \
 RUN apt-get install -y --no-install-recommends \
         libopencv-core3.2 \
         libopencv-highgui3.2 \
-        libopencv-imgproc3.2 &&
-    apt-get upgrade
+        libopencv-imgproc3.2 && \
+    apt-get upgrade -y
 
 WORKDIR /usr/bin
 COPY --from=builder /tmp/bin/template-opencv .
