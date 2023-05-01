@@ -25,7 +25,7 @@ RUN apt-get update -y && \
     apt-get dist-upgrade -y
 
 # Install the development libraries for OpenCV
-RUN apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         cmake \
         build-essential \
@@ -51,7 +51,7 @@ RUN apt-get update -y && \
     apt-get upgrade -y && \
     apt-get dist-upgrade -y
 
-RUN apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
         libopencv-core3.2 \
         libopencv-highgui3.2 \
         libopencv-imgproc3.2 && \
