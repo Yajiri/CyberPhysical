@@ -19,6 +19,8 @@ MAINTAINER Christian Berger "christian.berger@gu.se"
 
 ENV DEBIAN_FRONTEND noninteractive
 
+RUN apt-get update && apt-get install -y gnupg2
+
 # Upgrade the Ubuntu 18.04 LTS base image
 RUN apt-get update -y && \
     apt-get upgrade -y && \
