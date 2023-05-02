@@ -52,9 +52,9 @@ RUN apt-get update -y && \
     apt-get dist-upgrade -y
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libopencv-core3.2 \
-        libopencv-highgui3.2 \
-        libopencv-imgproc3.2 && \
+        libopencv-core4.5d \
+        libopencv-highgui4.5d \
+        libopencv-imgproc4.5d && \
     apt-get upgrade -y
 
 WORKDIR /usr/bin
