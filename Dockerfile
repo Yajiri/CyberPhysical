@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # First stage for building the software:
-FROM ubuntu:20.04 as builder
+FROM ubuntu:22.04.2 as builder
 MAINTAINER Christian Berger "christian.berger@gu.se"
 
 ENV DEBIAN_FRONTEND noninteractive
@@ -42,7 +42,7 @@ RUN mkdir build && \
 
 
 # Second stage for packaging the software into a software bundle:
-FROM ubuntu:20.04
+FROM ubuntu:22.04.2
 MAINTAINER Christian Berger "christian.berger@gu.se"
 
 ENV DEBIAN_FRONTEND noninteractive
