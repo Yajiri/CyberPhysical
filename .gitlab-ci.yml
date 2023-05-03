@@ -25,14 +25,13 @@ variables:
   BUILDX_URL: https://github.com/docker/buildx/releases/download/v0.10.4/buildx-v0.10.4.linux-amd64
   BUILDX_BUILDER: platformbuilder
 
-
 services:
   - name: docker:stable-dind
     alias: docker
     command: ["--experimental"]
 
 stages:
-  #  - build
+  - build
   - deploy
 
 # Display information before we start the build.
