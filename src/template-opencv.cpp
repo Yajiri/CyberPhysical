@@ -28,19 +28,15 @@
 #include <memory>
 #include <stdexcept>
 
+// Declaring constants
 cv::Scalar FILTER_LOWER = cv::Scalar(15, 62, 139);
 cv::Scalar FILTER_UPPER = cv::Scalar(40, 255, 255); 
-// cv::Scalar FILTER_LOWER(9, 0, 147);
-// cv::Scalar FILTER_UPPER(76, 255, 255);
+double CONTOUR_AREA_THRESHOLD = 5;
+double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
+double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
 
-// Filters and image out-place according to HSV bounds and returns it.
-cv::Mat filterImage(cv::Mat sourceImage) {
-    cv::Mat imgHSV, filteredImage, mask;
-    cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
-    cv::inRange(imgHSV, FILTER_LOWER, FILTER_UPPER, mask);
-    sourceImage.copyTo(filteredImage, mask);
-    return filteredImage;
-}
+// Declaring utility types
+enum CalculationAlgorithm { YELLOW = 0, BLUE = 1};
 
 class Rect {
     public:
@@ -56,6 +52,16 @@ class Rect {
         }
 };
 
+// Filters and image out-place according to HSV bounds and returns it.
+cv::Mat filterImage(cv::Mat sourceImage) {
+    cv::Mat imgHSV, filteredImage, mask;
+    cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
+    cv::inRange(imgHSV, FILTER_LOWER, FILTER_UPPER, mask);
+    sourceImage.copyTo(filteredImage, mask);
+    return filteredImage;
+}
+
+// Detects cones by drawing a red rectangle over them and returns the detected cones as an array of Rect
 std::vector<Rect> detectCones(cv::Mat sourceImage) {
     cv::Mat grayImage, binaryImage, morphedImage;
 
@@ -79,7 +85,7 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
     std::vector<std::vector<cv::Point>> filteredContours;
     for (const auto& contour : contours) {
         double area = cv::contourArea(contour);
-        if (area > 10) {
+        if (area > CONTOUR_AREA_THRESHOLD) {
             filteredContours.push_back(contour);
         }
     }
@@ -97,8 +103,7 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
     return boundingRectangles;
 }
 
-enum CalculationAlgorithm { YELLOW = 0, BLUE = 1};
-
+// Calculates the angle for a given array of bounding rectangles and algorithm (yellow cones, blue cones)
 float calculateAngle(std::vector<Rect> cones, CalculationAlgorithm algorithm) {
     switch(algorithm) {
         case YELLOW:
@@ -181,10 +186,9 @@ int32_t main(int32_t argc, char **argv) {
                 cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
                 std::vector<Rect> cones = detectCones(filteredImage);
                 float calculatedSteering = calculateAngle(cones, YELLOW);
-                float dGroundSteering = groundSteering == 0 ? 0.05 : groundSteering * 0.3;
+                float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
                 bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
-                
                 // Display image on your screen.
                 if (VERBOSE) {
                     std::cout << "----------- FRAME REPORT -----------" << std::endl;
@@ -195,7 +199,7 @@ int32_t main(int32_t argc, char **argv) {
                     correctFrames += calculatedWithinInterval ? 1 : 0;
                     std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
                     cv::imshow(sharedMemory->name().c_str(), filteredImage);
-                    
+
                     cv::waitKey(1);
                     int coneIndex = 1;
                     for (auto& cone : cones) {
