@@ -36,7 +36,11 @@ double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground
 double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
 
 // Declaring utility types
-enum CalculationAlgorithm { YELLOW = 0, BLUE = 1};
+enum CalculationAlgorithm { YELLOW, BLUE };
+
+enum DrivingDirection { CW, CCW }
+
+enum DrivingPattern { LEFT, RIGHT, STRAIGHT };
 
 class Rect {
     public:
@@ -104,7 +108,11 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
 }
 
 // Calculates the angle for a given array of bounding rectangles and algorithm (yellow cones, blue cones)
-float calculateAngle(std::vector<Rect> cones, CalculationAlgorithm algorithm) {
+float calculateAngle(
+    std::vector<Rect> cones,
+    CalculationAlgorithm algorithm,
+    DrivingDirection direction,
+    DrivingPattern previousPattern) {
     switch(algorithm) {
         case YELLOW:
             return 0;
