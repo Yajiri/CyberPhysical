@@ -38,7 +38,7 @@ double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not 
 // Declaring utility types
 enum CalculationAlgorithm { YELLOW, BLUE };
 
-enum DrivingDirection { CW, CCW }
+enum DrivingDirection { CW, CCW };
 
 enum DrivingPattern { LEFT, RIGHT, STRAIGHT };
 
@@ -111,8 +111,8 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
 float calculateAngle(
     std::vector<Rect> cones,
     CalculationAlgorithm algorithm,
-    DrivingDirection direction,
-    DrivingPattern previousPattern) {
+    DrivingDirection *previousDirection,
+    DrivingPattern *previousPattern) {
     switch(algorithm) {
         case YELLOW:
             return 0;
@@ -190,10 +190,13 @@ int32_t main(int32_t argc, char **argv) {
                     groundSteering = gsr.groundSteering();
                 }
 
+                DrivingDirection previousDirection;
+                DrivingPattern previousPattern;
+
                 cv::Mat filteredImage = filterImage(img);
                 cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
                 std::vector<Rect> cones = detectCones(filteredImage);
-                float calculatedSteering = calculateAngle(cones, YELLOW);
+                float calculatedSteering = calculateAngle(cones, YELLOW, &previousDirection, &previousPattern);
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
                 bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
