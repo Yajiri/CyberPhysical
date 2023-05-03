@@ -24,6 +24,10 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include <string>
+#include <memory>
+#include <stdexcept>
+
 cv::Scalar FILTER_LOWER = cv::Scalar(15, 62, 139);
 cv::Scalar FILTER_UPPER = cv::Scalar(40, 255, 255); 
 // cv::Scalar FILTER_LOWER(9, 0, 147);
@@ -52,7 +56,6 @@ class Rect {
         }
 };
 
-// std::vector<int, int, int, int> detectCones(cv::Mat sourceImage) {
 std::vector<Rect> detectCones(cv::Mat sourceImage) {
     cv::Mat grayImage, binaryImage, morphedImage;
 
@@ -92,6 +95,17 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
     }
 
     return boundingRectangles;
+}
+
+enum CalculationAlgorithm { YELLOW = 0, BLUE = 1};
+
+float calculateAngle(std::vector<Rect> cones, CalculationAlgorithm algorithm) {
+    switch(algorithm) {
+        case YELLOW:
+            return 0;
+        case BLUE:
+            return 0;
+    }
 }
 
 int32_t main(int32_t argc, char **argv) {
@@ -137,7 +151,7 @@ int32_t main(int32_t argc, char **argv) {
             };
 
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
-
+        
             // Endless loop; end the program by pressing Ctrl-C.
             while (od4.isRunning()) {
                 // OpenCV data structure to hold an image.
@@ -155,15 +169,23 @@ int32_t main(int32_t argc, char **argv) {
                 }
                 sharedMemory->unlock();
 
+                float groundSteering;
                 // If you want to access the latest received ground steering, don't forget to lock the mutex:
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     std::cout << "main: groundSteering = " << gsr.groundSteering() << std::endl;
+                    groundSteering = gsr.groundSteering();
+                    // std::cout << "main: groundSteering = " << groundSteering << std::endl;
                 }
 
                 cv::Mat filteredImage = filterImage(img);
-                std::vector<Rect> cones = detectCones(filteredImage);
                 cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
+                std::vector<Rect> cones = detectCones(filteredImage);
+                float calculatedSteering = calculateAngle(cones, YELLOW);
+                float dGroundSteering = groundSteering == 0 ? 0.05 : groundSteering * 0.3;
+                
+                std::cout << "Ground steering: " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
+                std::cout << "Calculated steering: " << calculatedSteering << ". " << (fabs(groundSteering - calculatedSteering) < dGroundSteering ? "[SUCCESS]" : "[FAILURE]") << std::endl;
 
                 // Display image on your screen.
                 if (VERBOSE) {
@@ -171,8 +193,8 @@ int32_t main(int32_t argc, char **argv) {
                     cv::waitKey(1);
                     int coneIndex = 1;
                     for (auto& cone : cones) {
-                        std::cout << "Detected cone #" << coneIndex << ": ";
-                        std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
+                        // std::cout << "Detected cone #" << coneIndex << ": ";
+                        // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
                         coneIndex++;
                     }
                 }
