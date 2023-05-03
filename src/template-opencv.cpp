@@ -24,19 +24,23 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include <string>
+#include <memory>
+#include <stdexcept>
+
+// Declaring constants
 cv::Scalar FILTER_LOWER = cv::Scalar(15, 62, 139);
 cv::Scalar FILTER_UPPER = cv::Scalar(40, 255, 255); 
-// cv::Scalar FILTER_LOWER(9, 0, 147);
-// cv::Scalar FILTER_UPPER(76, 255, 255);
+double CONTOUR_AREA_THRESHOLD = 5;
+double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
+double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
 
-// Filters and image out-place according to HSV bounds and returns it.
-cv::Mat filterImage(cv::Mat sourceImage) {
-    cv::Mat imgHSV, filteredImage, mask;
-    cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
-    cv::inRange(imgHSV, FILTER_LOWER, FILTER_UPPER, mask);
-    sourceImage.copyTo(filteredImage, mask);
-    return filteredImage;
-}
+// Declaring utility types
+enum CalculationAlgorithm { YELLOW, BLUE };
+
+enum DrivingDirection { CW, CCW };
+
+enum DrivingPattern { LEFT, RIGHT, STRAIGHT };
 
 class Rect {
     public:
@@ -52,7 +56,16 @@ class Rect {
         }
 };
 
-// std::vector<int, int, int, int> detectCones(cv::Mat sourceImage) {
+// Filters and image out-place according to HSV bounds and returns it.
+cv::Mat filterImage(cv::Mat sourceImage) {
+    cv::Mat imgHSV, filteredImage, mask;
+    cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
+    cv::inRange(imgHSV, FILTER_LOWER, FILTER_UPPER, mask);
+    sourceImage.copyTo(filteredImage, mask);
+    return filteredImage;
+}
+
+// Detects cones by drawing a red rectangle over them and returns the detected cones as an array of Rect
 std::vector<Rect> detectCones(cv::Mat sourceImage) {
     cv::Mat grayImage, binaryImage, morphedImage;
 
@@ -76,7 +89,7 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
     std::vector<std::vector<cv::Point>> filteredContours;
     for (const auto& contour : contours) {
         double area = cv::contourArea(contour);
-        if (area > 10) {
+        if (area > CONTOUR_AREA_THRESHOLD) {
             filteredContours.push_back(contour);
         }
     }
@@ -94,8 +107,24 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
     return boundingRectangles;
 }
 
+// Calculates the angle for a given array of bounding rectangles and algorithm (yellow cones, blue cones)
+float calculateAngle(
+    std::vector<Rect> cones,
+    CalculationAlgorithm algorithm,
+    DrivingDirection *previousDirection,
+    DrivingPattern *previousPattern) {
+    switch(algorithm) {
+        case YELLOW:
+            return 0;
+        case BLUE:
+            return 0;
+    }
+}
+
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
+    int totalFrames = 0;
+    int correctFrames = 0;
     // Parse the command line parameters as we require the user to specify some mandatory information on startup.
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
     if ( (0 == commandlineArguments.count("cid")) ||
@@ -133,11 +162,10 @@ int32_t main(int32_t argc, char **argv) {
                 // https://github.com/chrberger/libcluon/blob/master/libcluon/testsuites/TestEnvelopeConverter.cpp#L31-L40
                 std::lock_guard<std::mutex> lck(gsrMutex);
                 gsr = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(env));
-                std::cout << "lambda: groundSteering = " << gsr.groundSteering() << std::endl;
             };
 
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
-
+        
             // Endless loop; end the program by pressing Ctrl-C.
             while (od4.isRunning()) {
                 // OpenCV data structure to hold an image.
@@ -155,24 +183,39 @@ int32_t main(int32_t argc, char **argv) {
                 }
                 sharedMemory->unlock();
 
+                float groundSteering;
                 // If you want to access the latest received ground steering, don't forget to lock the mutex:
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
-                    std::cout << "main: groundSteering = " << gsr.groundSteering() << std::endl;
+                    groundSteering = gsr.groundSteering();
                 }
 
+                DrivingDirection previousDirection;
+                DrivingPattern previousPattern;
+
                 cv::Mat filteredImage = filterImage(img);
-                std::vector<Rect> cones = detectCones(filteredImage);
                 cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
+                std::vector<Rect> cones = detectCones(filteredImage);
+                float calculatedSteering = calculateAngle(cones, YELLOW, &previousDirection, &previousPattern);
+                float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
+                bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
                 // Display image on your screen.
                 if (VERBOSE) {
+                    std::cout << "----------- FRAME REPORT -----------" << std::endl;
+                    std::cout << "[GROUND] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
+                    std::cout << "[CALCULATED] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
+
+                    totalFrames++;
+                    correctFrames += calculatedWithinInterval ? 1 : 0;
+                    std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
                     cv::imshow(sharedMemory->name().c_str(), filteredImage);
+
                     cv::waitKey(1);
                     int coneIndex = 1;
                     for (auto& cone : cones) {
-                        std::cout << "Detected cone #" << coneIndex << ": ";
-                        std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
+                        // std::cout << "Detected cone #" << coneIndex << ": ";
+                        // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
                         coneIndex++;
                     }
                 }
