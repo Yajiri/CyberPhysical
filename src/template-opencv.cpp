@@ -110,6 +110,8 @@ float calculateAngle(std::vector<Rect> cones, CalculationAlgorithm algorithm) {
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
+    int totalFrames = 0;
+    int correctFrames = 0;
     // Parse the command line parameters as we require the user to specify some mandatory information on startup.
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
     if ( (0 == commandlineArguments.count("cid")) ||
@@ -147,7 +149,6 @@ int32_t main(int32_t argc, char **argv) {
                 // https://github.com/chrberger/libcluon/blob/master/libcluon/testsuites/TestEnvelopeConverter.cpp#L31-L40
                 std::lock_guard<std::mutex> lck(gsrMutex);
                 gsr = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(env));
-                std::cout << "lambda: groundSteering = " << gsr.groundSteering() << std::endl;
             };
 
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
@@ -173,9 +174,7 @@ int32_t main(int32_t argc, char **argv) {
                 // If you want to access the latest received ground steering, don't forget to lock the mutex:
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
-                    std::cout << "main: groundSteering = " << gsr.groundSteering() << std::endl;
                     groundSteering = gsr.groundSteering();
-                    // std::cout << "main: groundSteering = " << groundSteering << std::endl;
                 }
 
                 cv::Mat filteredImage = filterImage(img);
@@ -183,13 +182,20 @@ int32_t main(int32_t argc, char **argv) {
                 std::vector<Rect> cones = detectCones(filteredImage);
                 float calculatedSteering = calculateAngle(cones, YELLOW);
                 float dGroundSteering = groundSteering == 0 ? 0.05 : groundSteering * 0.3;
-                
-                std::cout << "Ground steering: " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
-                std::cout << "Calculated steering: " << calculatedSteering << ". " << (fabs(groundSteering - calculatedSteering) < dGroundSteering ? "[SUCCESS]" : "[FAILURE]") << std::endl;
+                bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
+                
                 // Display image on your screen.
                 if (VERBOSE) {
+                    std::cout << "----------- FRAME REPORT -----------" << std::endl;
+                    std::cout << "[GROUND] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
+                    std::cout << "[CALCULATED] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
+
+                    totalFrames++;
+                    correctFrames += calculatedWithinInterval ? 1 : 0;
+                    std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
                     cv::imshow(sharedMemory->name().c_str(), filteredImage);
+                    
                     cv::waitKey(1);
                     int coneIndex = 1;
                     for (auto& cone : cones) {
