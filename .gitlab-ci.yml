@@ -23,7 +23,6 @@ variables:
   DOCKER_DRIVER: overlay2
   DOCKER_CLI_EXPERIMENTAL: enabled
   BUILDX_URL: https://github.com/docker/buildx/releases/download/v0.10.4/buildx-v0.10.4.linux-amd64
-  BUILDX_BUILDER: platformbuilder
 
 services:
   - name: docker:stable-dind
