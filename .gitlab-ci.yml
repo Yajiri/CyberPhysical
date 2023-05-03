@@ -32,7 +32,7 @@ services:
     command: ["--experimental"]
 
 stages:
-  - build
+  #  - build
   - deploy
 
 # Display information before we start the build.
@@ -56,7 +56,6 @@ release:
     - docker-build
   stage: deploy
   script:
-    - cd src
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - DOCKER_CLI_EXPERIMENTAL=enabled docker buildx create --name  platformbuilder --use
     - DOCKER_CLI_EXPERIMENTAL=enabled docker buildx inspect --bootstrap
