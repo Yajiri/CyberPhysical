@@ -35,8 +35,8 @@ cv::Scalar YELLOW_LOWER = cv::Scalar(15, 62, 139);
 cv::Scalar YELLOW_UPPER = cv::Scalar(40, 255, 255); 
 
 // Blue cones HSV range 
-cv::Scalar BLUE_LOWER = cv::Scalar(104, 84, 31);
-cv::Scalar BLUE_UPPER = cv::Scalar(143, 255, 117); 
+cv::Scalar BLUE_LOWER = cv::Scalar(110, 91, 45);
+cv::Scalar BLUE_UPPER = cv::Scalar(134, 194, 96); 
 
 double CONTOUR_AREA_THRESHOLD = 5;
 double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
@@ -201,6 +201,7 @@ int32_t main(int32_t argc, char **argv) {
                 DrivingPattern previousPattern;
 
                 cv::Mat filteredImage = filterImage(img,BLUE_LOWER,BLUE_UPPER);
+                cv::rectangle(filteredImage, cv::Point(0, 0), cv::Point(640, 0.45*480), cv::Scalar(0,0,0), cv::FILLED);
                 cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
                 std::vector<Rect> cones = detectCones(filteredImage);
                 float calculatedSteering = calculateAngle(cones, YELLOW, &previousDirection, &previousPattern);
@@ -212,7 +213,6 @@ int32_t main(int32_t argc, char **argv) {
                     std::cout << "----------- FRAME REPORT -----------" << std::endl;
                     std::cout << "[GROUND] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
                     std::cout << "[CALCULATED] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
-
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
                     std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
