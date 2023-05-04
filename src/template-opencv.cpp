@@ -29,8 +29,15 @@
 #include <stdexcept>
 
 // Declaring constants
-cv::Scalar FILTER_LOWER = cv::Scalar(15, 62, 139);
-cv::Scalar FILTER_UPPER = cv::Scalar(40, 255, 255); 
+
+// Yellow cones HSV range
+cv::Scalar YELLOW_LOWER = cv::Scalar(15, 62, 139);
+cv::Scalar YELLOW_UPPER = cv::Scalar(40, 255, 255); 
+
+// Blue cones HSV range 
+cv::Scalar BLUE_LOWER = cv::Scalar(104, 84, 31);
+cv::Scalar BLUE_UPPER = cv::Scalar(143, 255, 117); 
+
 double CONTOUR_AREA_THRESHOLD = 5;
 double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
 double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
