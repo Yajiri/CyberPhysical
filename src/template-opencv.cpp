@@ -64,10 +64,10 @@ class Rect {
 };
 
 // Filters and image out-place according to HSV bounds and returns it.
-cv::Mat filterImage(cv::Mat sourceImage) {
+cv::Mat filterImage(cv::Mat sourceImage, cv::Scalar filterLower, cv::Scalar filterUpper) {
     cv::Mat imgHSV, filteredImage, mask;
     cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
-    cv::inRange(imgHSV, FILTER_LOWER, FILTER_UPPER, mask);
+    cv::inRange(imgHSV, filterLower, filterUpper, mask);
     sourceImage.copyTo(filteredImage, mask);
     return filteredImage;
 }
@@ -200,7 +200,7 @@ int32_t main(int32_t argc, char **argv) {
                 DrivingDirection previousDirection;
                 DrivingPattern previousPattern;
 
-                cv::Mat filteredImage = filterImage(img);
+                cv::Mat filteredImage = filterImage(img,BLUE_LOWER,BLUE_UPPER);
                 cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
                 std::vector<Rect> cones = detectCones(filteredImage);
                 float calculatedSteering = calculateAngle(cones, YELLOW, &previousDirection, &previousPattern);
