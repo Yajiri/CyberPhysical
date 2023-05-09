@@ -32,7 +32,7 @@
 std::tuple<cv::Scalar, cv::Scalar> YELLOW_FILTER = { cv::Scalar(15, 62, 139), cv::Scalar(40, 255, 255) };
 std::tuple<cv::Scalar, cv::Scalar> BLUE_FILTER = { cv::Scalar(110, 91, 45), cv::Scalar(134, 194, 96) };
 
-double CONTOUR_AREA_THRESHOLD = 5;
+double CONTOUR_AREA_THRESHOLD = 50;
 double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
 double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
 
@@ -83,7 +83,6 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
     std::vector<std::vector<cv::Point>> filteredContours;
     for (const auto& contour : contours) {
         double area = cv::contourArea(contour);
-        
         if (area > CONTOUR_AREA_THRESHOLD) {
             filteredContours.push_back(contour);
         }
@@ -106,6 +105,14 @@ float calculateAngle(std::vector<Rect> yellowCones, std::vector<Rect> blueCones)
     return 0;
 }
 
+template <typename T>
+std::vector<T> joinVectors(std::vector<T> first, std::vector<T> second) {
+    std::vector<T> result;
+    result.reserve(first.size() + second.size());
+    result.insert(result.end(), first.begin(), first.end());
+    result.insert(result.end(), second.begin(), second.end());
+    return result;
+}
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
@@ -142,7 +149,10 @@ int32_t main(int32_t argc, char **argv) {
             cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
 
             opendlv::proxy::GroundSteeringRequest gsr;
+            opendlv::proxy::VoltageRequest vr;
             std::mutex gsrMutex;
+            std::mutex vrMutex;
+            
             auto onGroundSteeringRequest = [&gsr, &gsrMutex](cluon::data::Envelope &&env){
                 // The envelope data structure provide further details, such as sampleTimePoint as shown in this test case:
                 // https://github.com/chrberger/libcluon/blob/master/libcluon/testsuites/TestEnvelopeConverter.cpp#L31-L40
@@ -150,8 +160,14 @@ int32_t main(int32_t argc, char **argv) {
                 gsr = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(env));
             };
 
+            auto onVoltageRequest = [&vr, &vrMutex](cluon::data::Envelope &&env) {
+                std::lock_guard<std::mutex> lck(vrMutex);
+                vr = cluon::extractMessage<opendlv::proxy::VoltageRequest>(std::move(env));  
+            };
+
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
-        
+            od4.dataTrigger(opendlv::proxy::VoltageRequest::ID(), onVoltageRequest);
+
             // Endless loop; end the program by pressing Ctrl-C.
             while (od4.isRunning()) {
                 // OpenCV data structure to hold an image.
@@ -169,29 +185,30 @@ int32_t main(int32_t argc, char **argv) {
                 }
                 sharedMemory->unlock();
 
-                float groundSteering;
+                float groundSteering, voltage;
                 // If you want to access the latest received ground steering, don't forget to lock the mutex:
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     groundSteering = gsr.groundSteering();
                 }
+                {
+                    std::lock_guard<std::mutex> lck(vrMutex);
+                    voltage = vr.voltage();
+                }
 
-
+                // Blacking out the horizon and wires of the car
                 cv::rectangle(img, cv::Point(0, 0), cv::Point(640, 0.45*480), cv::Scalar(0,0,0), cv::FILLED);
                 cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
                 
+                // Detecting both color cones [bounding rectangles]
                 std::vector<Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
                 std::vector<Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
                 
                 float calculatedSteering = calculateAngle(yellowCones, blueCones);
-
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
                 bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
-                for(auto& cone: blueCones) {
-                    cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
-                }
-                for(auto& cone: yellowCones) {
+                for(auto& cone: joinVectors(yellowCones, blueCones)) {
                     cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
                 }
 
