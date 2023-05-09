@@ -239,6 +239,9 @@ int32_t main(int32_t argc, char **argv) {
                     // If cones are detected, draw a point in the center of each rectangle
                     if(cones.size()>0) {
                       conesWithCenter = drawCenter(filteredImage,cones);
+                    
+
+
                     }
         		
                     cv::imshow(sharedMemory->name().c_str(), conesWithCenter);
@@ -271,10 +274,18 @@ cv::Point findCenter(Rect rectangle) {
 
 // Draw the point that represents the center of the given rectangle on the source img 
 cv::Mat drawCenter(cv::Mat sourceImg, std::vector<Rect> cones) {
+    int carCenterX = (495-160)/2 + 160;
+    int carCenterY = (479-390)/2 + 390;
+
+    // center of car
+    cv::circle(sourceImg, cv::Point(carCenterX, carCenterY), 2, cv::Scalar(0, 0, 255), -1);
+
 	int index=1;
 	for(auto& cone : cones){
 	    cv::Point coneCenter = findCenter(cone);
+
 	    cv::circle(sourceImg, cv::Point(coneCenter.x, coneCenter.y), 2, cv::Scalar(0, 0, 255), -1);
+
 	    std::cout << "Detected center " << index << ": x=" << coneCenter.x << " y=" << coneCenter.y << std::endl;
         index++;
 	}
