@@ -29,8 +29,15 @@
 #include <stdexcept>
 
 // Declaring constants
-cv::Scalar FILTER_LOWER = cv::Scalar(15, 62, 139);
-cv::Scalar FILTER_UPPER = cv::Scalar(40, 255, 255); 
+
+// Yellow cones HSV range
+cv::Scalar YELLOW_LOWER = cv::Scalar(15, 62, 139);
+cv::Scalar YELLOW_UPPER = cv::Scalar(40, 255, 255); 
+
+// Blue cones HSV range 
+cv::Scalar BLUE_LOWER = cv::Scalar(110, 91, 45);
+cv::Scalar BLUE_UPPER = cv::Scalar(134, 194, 96); 
+
 double CONTOUR_AREA_THRESHOLD = 5;
 double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
 double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
@@ -57,10 +64,10 @@ class Rect {
 };
 
 // Filters and image out-place according to HSV bounds and returns it.
-cv::Mat filterImage(cv::Mat sourceImage) {
+cv::Mat filterImage(cv::Mat sourceImage, cv::Scalar filterLower, cv::Scalar filterUpper) {
     cv::Mat imgHSV, filteredImage, mask;
     cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
-    cv::inRange(imgHSV, FILTER_LOWER, FILTER_UPPER, mask);
+    cv::inRange(imgHSV, filterLower, filterUpper, mask);
     sourceImage.copyTo(filteredImage, mask);
     return filteredImage;
 }
@@ -193,7 +200,8 @@ int32_t main(int32_t argc, char **argv) {
                 DrivingDirection previousDirection;
                 DrivingPattern previousPattern;
 
-                cv::Mat filteredImage = filterImage(img);
+                cv::Mat filteredImage = filterImage(img,BLUE_LOWER,BLUE_UPPER);
+                cv::rectangle(filteredImage, cv::Point(0, 0), cv::Point(640, 0.45*480), cv::Scalar(0,0,0), cv::FILLED);
                 cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
                 std::vector<Rect> cones = detectCones(filteredImage);
                 float calculatedSteering = calculateAngle(cones, YELLOW, &previousDirection, &previousPattern);
@@ -205,7 +213,6 @@ int32_t main(int32_t argc, char **argv) {
                     std::cout << "----------- FRAME REPORT -----------" << std::endl;
                     std::cout << "[GROUND] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
                     std::cout << "[CALCULATED] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
-
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
                     std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
