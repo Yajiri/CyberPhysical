@@ -229,9 +229,13 @@ int32_t main(int32_t argc, char **argv) {
                     //std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
                     
                     std::cout << "----------- CONES DETECTION -----------" << std::endl;
-		    // If cones are detected, draw a point in the center of each rectangle
-                    if(cones.size()>0) {
+		            
+                    // If cones are detected, draw a point in the center of each rectangle
                     
+                    conesWithCenter = filteredImage;
+
+                    if(cones.size()>0) {
+
                       conesWithCenter = drawCenter(filteredImage,cones);
                     }
         
