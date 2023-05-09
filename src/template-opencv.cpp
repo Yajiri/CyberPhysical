@@ -29,25 +29,12 @@
 #include <stdexcept>
 
 // Declaring constants
-
-// Yellow cones HSV range
-cv::Scalar YELLOW_LOWER = cv::Scalar(15, 62, 139);
-cv::Scalar YELLOW_UPPER = cv::Scalar(40, 255, 255); 
-
-// Blue cones HSV range 
-cv::Scalar BLUE_LOWER = cv::Scalar(110, 91, 45);
-cv::Scalar BLUE_UPPER = cv::Scalar(134, 194, 96); 
+std::tuple<cv::Scalar, cv::Scalar> YELLOW_FILTER = { cv::Scalar(15, 62, 139), cv::Scalar(40, 255, 255) };
+std::tuple<cv::Scalar, cv::Scalar> BLUE_FILTER = { cv::Scalar(110, 91, 45), cv::Scalar(134, 194, 96) };
 
 double CONTOUR_AREA_THRESHOLD = 5;
 double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
 double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
-
-// Declaring utility types
-enum CalculationAlgorithm { YELLOW, BLUE };
-
-enum DrivingDirection { CW, CCW };
-
-enum DrivingPattern { LEFT, RIGHT, STRAIGHT };
 
 class Rect {
     public:
@@ -64,10 +51,10 @@ class Rect {
 };
 
 // Filters and image out-place according to HSV bounds and returns it.
-cv::Mat filterImage(cv::Mat sourceImage, cv::Scalar filterLower, cv::Scalar filterUpper) {
+cv::Mat filterImage(cv::Mat sourceImage, std::tuple<cv::Scalar, cv::Scalar> filter) {
     cv::Mat imgHSV, filteredImage, mask;
     cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
-    cv::inRange(imgHSV, filterLower, filterUpper, mask);
+    cv::inRange(imgHSV, std::get<0>(filter), std::get<1>(filter), mask);
     sourceImage.copyTo(filteredImage, mask);
     return filteredImage;
 }
@@ -96,37 +83,29 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
     std::vector<std::vector<cv::Point>> filteredContours;
     for (const auto& contour : contours) {
         double area = cv::contourArea(contour);
+        
         if (area > CONTOUR_AREA_THRESHOLD) {
             filteredContours.push_back(contour);
         }
     }
 
     std::vector<Rect> boundingRectangles;
-
+    
     // Draw bounding boxes
     for (const auto& contour : filteredContours) {
         cv::Rect boundingRect = cv::boundingRect(contour);
         boundingRectangles.push_back(Rect(boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height));
-
         cv::rectangle(sourceImage, boundingRect, cv::Scalar(0, 0, 255), 2);
     }
-
+    
     return boundingRectangles;
 }
 
 // Calculates the angle for a given array of bounding rectangles and algorithm (yellow cones, blue cones)
-float calculateAngle(
-    std::vector<Rect> cones,
-    CalculationAlgorithm algorithm,
-    DrivingDirection *previousDirection,
-    DrivingPattern *previousPattern) {
-    switch(algorithm) {
-        case YELLOW:
-            return 0;
-        case BLUE:
-            return 0;
-    }
+float calculateAngle(std::vector<Rect> yellowCones, std::vector<Rect> blueCones) {
+    return 0;
 }
+
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
@@ -197,16 +176,24 @@ int32_t main(int32_t argc, char **argv) {
                     groundSteering = gsr.groundSteering();
                 }
 
-                DrivingDirection previousDirection;
-                DrivingPattern previousPattern;
 
-                cv::Mat filteredImage = filterImage(img,BLUE_LOWER,BLUE_UPPER);
-                cv::rectangle(filteredImage, cv::Point(0, 0), cv::Point(640, 0.45*480), cv::Scalar(0,0,0), cv::FILLED);
-                cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
-                std::vector<Rect> cones = detectCones(filteredImage);
-                float calculatedSteering = calculateAngle(cones, YELLOW, &previousDirection, &previousPattern);
+                cv::rectangle(img, cv::Point(0, 0), cv::Point(640, 0.45*480), cv::Scalar(0,0,0), cv::FILLED);
+                cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
+                
+                std::vector<Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
+                std::vector<Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
+                
+                float calculatedSteering = calculateAngle(yellowCones, blueCones);
+
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
                 bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
+
+                for(auto& cone: blueCones) {
+                    cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
+                }
+                for(auto& cone: yellowCones) {
+                    cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
+                }
 
                 // Display image on your screen.
                 if (VERBOSE) {
@@ -216,13 +203,19 @@ int32_t main(int32_t argc, char **argv) {
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
                     std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
-                    cv::imshow(sharedMemory->name().c_str(), filteredImage);
+                    cv::imshow(sharedMemory->name().c_str(), img);
 
                     cv::waitKey(1);
                     int coneIndex = 1;
-                    for (auto& cone : cones) {
-                        // std::cout << "Detected cone #" << coneIndex << ": ";
-                        // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
+                    for (auto& cone : yellowCones) {
+                        std::cout << "Detected yellow cone #" << coneIndex << ": ";
+                        std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
+                        
+                        coneIndex++;
+                    }
+                    for (auto& cone : blueCones) {
+                        std::cout << "Detected blue cone #" << coneIndex << ": ";
+                        std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
                         coneIndex++;
                     }
                 }
