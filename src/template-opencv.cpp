@@ -277,7 +277,7 @@ cv::Mat drawCenter(cv::Mat sourceImg, std::vector<Rect> cones) {
     int carCenterX = (495-160)/2 + 160;
     int carCenterY = (479-390)/2 + 390;
 
-    // center of car
+    // center of car 
     cv::circle(sourceImg, cv::Point(carCenterX, carCenterY), 2, cv::Scalar(0, 0, 255), -1);
 
 	int index=1;
@@ -286,11 +286,15 @@ cv::Mat drawCenter(cv::Mat sourceImg, std::vector<Rect> cones) {
 
 	    cv::circle(sourceImg, cv::Point(coneCenter.x, coneCenter.y), 2, cv::Scalar(0, 0, 255), -1);
 
+        cv::line(sourceImg, cv::Point(coneCenter.x, coneCenter.y), cv::Point(carCenterX,carCenterY), cv::Scalar(0, 0, 255), 2);
+
 	    std::cout << "Detected center " << index << ": x=" << coneCenter.x << " y=" << coneCenter.y << std::endl;
         index++;
 	}
 	return sourceImg;
 }
+
+
 
 
 
