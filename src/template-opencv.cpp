@@ -36,20 +36,6 @@ double CONTOUR_AREA_THRESHOLD = 35;
 double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
 double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
 
-class Rect {
-    public:
-        int x;
-        int y;
-        int width;
-        int height;
-        Rect(int pX, int pY, int pWidth, int pHeight) {
-            this->x = pX;
-            this->y = pY;
-            this->width = pWidth;
-            this->height = pHeight;
-        }
-};
-
 // Filters and image out-place according to HSV bounds and returns it.
 cv::Mat filterImage(cv::Mat sourceImage, std::tuple<cv::Scalar, cv::Scalar> filter) {
     cv::Mat imgHSV, filteredImage, mask;
@@ -60,7 +46,7 @@ cv::Mat filterImage(cv::Mat sourceImage, std::tuple<cv::Scalar, cv::Scalar> filt
 }
 
 // Detects cones by drawing a red rectangle over them and returns the detected cones as an array of Rect
-std::vector<Rect> detectCones(cv::Mat sourceImage) {
+std::vector<cv::Rect> detectCones(cv::Mat sourceImage) {
     cv::Mat grayImage, binaryImage, morphedImage;
 
     // Convert `sourceImage` to grayscale and store it in `grayImage`
@@ -88,12 +74,12 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
         }
     }
 
-    std::vector<Rect> boundingRectangles;
+    std::vector<cv::Rect> boundingRectangles;
     
     // Draw bounding boxes
     for (const auto& contour : filteredContours) {
         cv::Rect boundingRect = cv::boundingRect(contour);
-        boundingRectangles.push_back(Rect(boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height));
+        boundingRectangles.push_back(boundingRect);
         cv::rectangle(sourceImage, boundingRect, cv::Scalar(0, 0, 255), 2);
     }
     
@@ -101,10 +87,11 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
 }
 
 // Calculates the angle for a given array of bounding rectangles and algorithm (yellow cones, blue cones)
-float calculateAngle(std::vector<Rect> yellowCones, std::vector<Rect> blueCones) {
+float calculateAngle(std::vector<cv::Rect> yellowCones, std::vector<cv::Rect> blueCones) {
     return 0;
 }
 
+// Returns a vector concatenation of `first` and `second`
 template <typename T>
 std::vector<T> joinVectors(std::vector<T> first, std::vector<T> second) {
     std::vector<T> result;
@@ -202,13 +189,15 @@ int32_t main(int32_t argc, char **argv) {
                 cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
                 
                 // Detecting both color cones [bounding rectangles]
-                std::vector<Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
-                std::vector<Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
+                std::vector<cv::Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
+                std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
                 
+                // Testing metrics
                 float calculatedSteering = calculateAngle(yellowCones, blueCones);
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
                 bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
+                // Drawing bounding rectangles over detected cones
                 for(auto& cone: joinVectors(yellowCones, blueCones)) {
                     cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
                 }
@@ -217,25 +206,28 @@ int32_t main(int32_t argc, char **argv) {
                 if (VERBOSE) {
                     std::cout << "----------- FRAME REPORT -----------" << std::endl;
                     std::cout << "[VOLTAGE] Got " << voltage << "." << std::endl;
-                    std::cout << "[GROUND STEERING] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
-                    std::cout << "[CALCULATED STEERING] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
+                    // std::cout << "[GROUND STEERING] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
+                    // std::cout << "[CALCULATED STEERING] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
-                    std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
+                    // std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
                     cv::imshow(sharedMemory->name().c_str(), img);
 
                     cv::waitKey(1);
-                    int coneIndex = 1;
+
+                    // Logging detected cone locations and sizes
+                    int blueConeIndex = 1;
+                    int yellowConeIndex = 1;
                     for (auto& cone : yellowCones) {
-                        std::cout << "Detected yellow cone #" << coneIndex << ": ";
-                        std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
+                        // std::cout << "Detected yellow cone #" << coneIndex << ": ";
+                        // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
                         
-                        coneIndex++;
+                        yellowConeIndex++;
                     }
                     for (auto& cone : blueCones) {
-                        std::cout << "Detected blue cone #" << coneIndex << ": ";
-                        std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
-                        coneIndex++;
+                        // std::cout << "Detected blue cone #" << coneIndex << ": ";
+                        // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
+                        blueConeIndex++;
                     }
                 }
             }
