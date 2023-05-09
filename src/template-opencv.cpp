@@ -208,15 +208,20 @@ int32_t main(int32_t argc, char **argv) {
                 DrivingDirection previousDirection; 
                 DrivingPattern previousPattern;
 
-                cv::Mat filteredImage = filterImage(img,YELLOW_LOWER,YELLOW_UPPER);
+                //cv::Mat filteredImage = filterImage(img,YELLOW_LOWER,YELLOW_UPPER);
+                cv::Mat filteredImage = filterImage(img,BLUE_LOWER,BLUE_UPPER);
+
+                // Reduce noise by reducing the area in which the hsv values are filtered in (draw black rectangles over areas outside of cone detection areas)
                 cv::rectangle(filteredImage, cv::Point(0, 0), cv::Point(640, 0.45*480), cv::Scalar(0,0,0), cv::FILLED);
                 cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
+
+                // Find cone contours
                 std::vector<Rect> cones = detectCones(filteredImage);
                 
            
-                float calculatedSteering = calculateAngle(cones, YELLOW, &previousDirection, &previousPattern);
-                float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
-                bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
+                //float calculatedSteering = calculateAngle(cones, YELLOW, &previousDirection, &previousPattern);
+                //float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
+                //bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
                 // Display image on your screen.
                 if (VERBOSE) {
@@ -229,16 +234,12 @@ int32_t main(int32_t argc, char **argv) {
                     //std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
                     
                     std::cout << "----------- CONES DETECTION -----------" << std::endl;
-		            
+		            conesWithCenter = filteredImage;
+
                     // If cones are detected, draw a point in the center of each rectangle
-                    
-                    conesWithCenter = filteredImage;
-
                     if(cones.size()>0) {
-
                       conesWithCenter = drawCenter(filteredImage,cones);
                     }
-        
         		
                     cv::imshow(sharedMemory->name().c_str(), conesWithCenter);
 
@@ -275,6 +276,7 @@ cv::Mat drawCenter(cv::Mat sourceImg, std::vector<Rect> cones) {
 	    cv::Point coneCenter = findCenter(cone);
 	    cv::circle(sourceImg, cv::Point(coneCenter.x, coneCenter.y), 2, cv::Scalar(0, 0, 255), -1);
 	    std::cout << "Detected center " << index << ": x=" << coneCenter.x << " y=" << coneCenter.y << std::endl;
+        index++;
 	}
 	return sourceImg;
 }
