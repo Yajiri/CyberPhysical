@@ -62,6 +62,11 @@ class Rect {
             this->height = pHeight;
         }
 };
+//Function declaration
+
+cv::Point findCenter(Rect rectangle);
+cv::Mat drawCenter(cv::Mat sourceImg, std::vector<Rect> cones);
+
 
 // Filters and image out-place according to HSV bounds and returns it.
 cv::Mat filterImage(cv::Mat sourceImage, cv::Scalar filterLower, cv::Scalar filterUpper) {
@@ -132,6 +137,9 @@ int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
     int totalFrames = 0;
     int correctFrames = 0;
+    cv::Point coneCenter;
+    cv::Mat conesWithCenter;
+    
     // Parse the command line parameters as we require the user to specify some mandatory information on startup.
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
     if ( (0 == commandlineArguments.count("cid")) ||
@@ -197,32 +205,44 @@ int32_t main(int32_t argc, char **argv) {
                     groundSteering = gsr.groundSteering();
                 }
 
-                DrivingDirection previousDirection;
+                DrivingDirection previousDirection; 
                 DrivingPattern previousPattern;
 
-                cv::Mat filteredImage = filterImage(img,BLUE_LOWER,BLUE_UPPER);
+                cv::Mat filteredImage = filterImage(img,YELLOW_LOWER,YELLOW_UPPER);
                 cv::rectangle(filteredImage, cv::Point(0, 0), cv::Point(640, 0.45*480), cv::Scalar(0,0,0), cv::FILLED);
                 cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
                 std::vector<Rect> cones = detectCones(filteredImage);
+                
+           
                 float calculatedSteering = calculateAngle(cones, YELLOW, &previousDirection, &previousPattern);
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
                 bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
                 // Display image on your screen.
                 if (VERBOSE) {
-                    std::cout << "----------- FRAME REPORT -----------" << std::endl;
-                    std::cout << "[GROUND] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
-                    std::cout << "[CALCULATED] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
-                    totalFrames++;
-                    correctFrames += calculatedWithinInterval ? 1 : 0;
-                    std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
-                    cv::imshow(sharedMemory->name().c_str(), filteredImage);
+                    //std::cout << "----------- FRAME REPORT -----------" << std::endl;
+
+                    //std::cout << "[GROUND] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
+                    //std::cout << "[CALCULATED] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
+                    //totalFrames++;
+                    //correctFrames += calculatedWithinInterval ? 1 : 0;
+                    //std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
+                    
+                    std::cout << "----------- CONES DETECTION -----------" << std::endl;
+		    // If cones are detected, draw a point in the center of each rectangle
+                    if(cones.size()>0) {
+                    
+                      conesWithCenter = drawCenter(filteredImage,cones);
+                    }
+        
+        		
+                    cv::imshow(sharedMemory->name().c_str(), conesWithCenter);
 
                     cv::waitKey(1);
                     int coneIndex = 1;
                     for (auto& cone : cones) {
-                        // std::cout << "Detected cone #" << coneIndex << ": ";
-                        // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
+                        std::cout << "Detected cone #" << coneIndex << ": ";
+                        std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
                         coneIndex++;
                     }
                 }
@@ -232,4 +252,28 @@ int32_t main(int32_t argc, char **argv) {
     }
     return retCode;
 }
+
+
+//Function definition
+// Find center of one rectangle
+cv::Point findCenter(Rect rectangle) {
+    cv::Point center;
+    center.x = rectangle.width/2+rectangle.x;
+    center.y = rectangle.height/2+rectangle.y;
+    return center;
+
+}
+
+// Draw the point that represents the center of the given rectangle on the source img 
+cv::Mat drawCenter(cv::Mat sourceImg, std::vector<Rect> cones) {
+	int index=1;
+	for(auto& cone : cones){
+	    cv::Point coneCenter = findCenter(cone);
+	    cv::circle(sourceImg, cv::Point(coneCenter.x, coneCenter.y), 2, cv::Scalar(0, 0, 255), -1);
+	    std::cout << "Detected center " << index << ": x=" << coneCenter.x << " y=" << coneCenter.y << std::endl;
+	}
+	return sourceImg;
+}
+
+
 
