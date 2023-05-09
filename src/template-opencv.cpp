@@ -32,7 +32,7 @@
 std::tuple<cv::Scalar, cv::Scalar> YELLOW_FILTER = { cv::Scalar(15, 62, 139), cv::Scalar(40, 255, 255) };
 std::tuple<cv::Scalar, cv::Scalar> BLUE_FILTER = { cv::Scalar(110, 91, 45), cv::Scalar(134, 194, 96) };
 
-double CONTOUR_AREA_THRESHOLD = 50;
+double CONTOUR_AREA_THRESHOLD = 35;
 double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
 double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
 
@@ -166,7 +166,9 @@ int32_t main(int32_t argc, char **argv) {
             };
 
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
-            od4.dataTrigger(opendlv::proxy::VoltageRequest::ID(), onVoltageRequest);
+            //! `opendlv::proxy::VoltageRequest::ID()` returns 1083 which is the wrong id
+            // od4.dataTrigger(opendlv::proxy::VoltageRequest::ID(), onVoltageRequest);
+            od4.dataTrigger(1037, onVoltageRequest);
 
             // Endless loop; end the program by pressing Ctrl-C.
             while (od4.isRunning()) {
@@ -186,7 +188,6 @@ int32_t main(int32_t argc, char **argv) {
                 sharedMemory->unlock();
 
                 float groundSteering, voltage;
-                // If you want to access the latest received ground steering, don't forget to lock the mutex:
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     groundSteering = gsr.groundSteering();
@@ -215,8 +216,9 @@ int32_t main(int32_t argc, char **argv) {
                 // Display image on your screen.
                 if (VERBOSE) {
                     std::cout << "----------- FRAME REPORT -----------" << std::endl;
-                    std::cout << "[GROUND] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
-                    std::cout << "[CALCULATED] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
+                    std::cout << "[VOLTAGE] Got " << voltage << "." << std::endl;
+                    std::cout << "[GROUND STEERING] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
+                    std::cout << "[CALCULATED STEERING] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
                     std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
