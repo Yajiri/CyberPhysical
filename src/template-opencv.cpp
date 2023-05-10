@@ -62,11 +62,11 @@ class Rect {
             this->height = pHeight;
         }
 };
-//Function declaration
 
+//Function declaration
 cv::Point findCenter(Rect rectangle);
 cv::Mat drawCenter(cv::Mat sourceImg, std::vector<Rect> cones);
-
+void calculateDistance(cv::Point p1, cv::Point p2);
 
 // Filters and image out-place according to HSV bounds and returns it.
 cv::Mat filterImage(cv::Mat sourceImage, cv::Scalar filterLower, cv::Scalar filterUpper) {
@@ -289,9 +289,17 @@ cv::Mat drawCenter(cv::Mat sourceImg, std::vector<Rect> cones) {
         cv::line(sourceImg, cv::Point(coneCenter.x, coneCenter.y), cv::Point(carCenterX,carCenterY), cv::Scalar(0, 0, 255), 2);
 
 	    std::cout << "Detected center " << index << ": x=" << coneCenter.x << " y=" << coneCenter.y << std::endl;
+        
         index++;
+        
+        calculateDistance(cv::Point(carCenterX,carCenterY), cv::Point(coneCenter.x, coneCenter.y));
 	}
 	return sourceImg;
+}
+
+void calculateDistance(cv::Point p1, cv::Point p2) {
+    std::cout << "Distance: " << std::sqrt(std::pow(p2.x - p1.x, 2) + std::pow(p2.y - p1.y, 2)) << std::endl;
+    
 }
 
 
