@@ -30,13 +30,9 @@
 
 // Declaring constants
 
-// Yellow cones HSV range
-cv::Scalar YELLOW_LOWER = cv::Scalar(15, 62, 139);
-cv::Scalar YELLOW_UPPER = cv::Scalar(40, 255, 255); 
-
-// Blue cones HSV range 
-cv::Scalar BLUE_LOWER = cv::Scalar(110, 91, 45);
-cv::Scalar BLUE_UPPER = cv::Scalar(134, 194, 96); 
+// Declaring constants
+std::tuple<cv::Scalar, cv::Scalar> YELLOW_FILTER = {cv::Scalar(15, 62, 139), cv::Scalar(40, 255, 255)};
+std::tuple<cv::Scalar, cv::Scalar> BLUE_FILTER = {cv::Scalar(110, 91, 45), cv::Scalar(134, 194, 96)};
 
 double CONTOUR_AREA_THRESHOLD = 5;
 double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
@@ -49,36 +45,23 @@ enum DrivingDirection { CW, CCW };
 
 enum DrivingPattern { LEFT, RIGHT, STRAIGHT };
 
-class Rect {
-    public:
-        int x;
-        int y;
-        int width;
-        int height;
-        Rect(int pX, int pY, int pWidth, int pHeight) {
-            this->x = pX;
-            this->y = pY;
-            this->width = pWidth;
-            this->height = pHeight;
-        }
-};
-
 //Function declaration
-cv::Point findCenter(Rect rectangle);
-cv::Mat drawCenter(cv::Mat sourceImg, std::vector<Rect> cones);
+cv::Point findCenter(cv::Rect rectangle);
+cv::Mat drawCenter(cv::Mat sourceImg, std::vector<cv::Rect> cones);
 void calculateDistance(cv::Point p1, cv::Point p2);
 
 // Filters and image out-place according to HSV bounds and returns it.
-cv::Mat filterImage(cv::Mat sourceImage, cv::Scalar filterLower, cv::Scalar filterUpper) {
+cv::Mat filterImage(cv::Mat sourceImage, std::tuple<cv::Scalar, cv::Scalar> filter)
+{
     cv::Mat imgHSV, filteredImage, mask;
     cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
-    cv::inRange(imgHSV, filterLower, filterUpper, mask);
+    cv::inRange(imgHSV, std::get<0>(filter), std::get<1>(filter), mask);
     sourceImage.copyTo(filteredImage, mask);
     return filteredImage;
 }
 
 // Detects cones by drawing a red rectangle over them and returns the detected cones as an array of Rect
-std::vector<Rect> detectCones(cv::Mat sourceImage) {
+std::vector<cv::Rect> detectCones(cv::Mat sourceImage) {
     cv::Mat grayImage, binaryImage, morphedImage;
 
     // Convert `sourceImage` to grayscale and store it in `grayImage`
@@ -106,31 +89,27 @@ std::vector<Rect> detectCones(cv::Mat sourceImage) {
         }
     }
 
-    std::vector<Rect> boundingRectangles;
-
+    std::vector<cv::Rect> boundingRectangles;
+    
     // Draw bounding boxes
     for (const auto& contour : filteredContours) {
         cv::Rect boundingRect = cv::boundingRect(contour);
-        boundingRectangles.push_back(Rect(boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height));
-
+        boundingRectangles.push_back(boundingRect);
         cv::rectangle(sourceImage, boundingRect, cv::Scalar(0, 0, 255), 2);
     }
-
+    
     return boundingRectangles;
 }
 
-// Calculates the angle for a given array of bounding rectangles and algorithm (yellow cones, blue cones)
-float calculateAngle(
-    std::vector<Rect> cones,
-    CalculationAlgorithm algorithm,
-    DrivingDirection *previousDirection,
-    DrivingPattern *previousPattern) {
-    switch(algorithm) {
-        case YELLOW:
-            return 0;
-        case BLUE:
-            return 0;
-    }
+
+// Returns a vector concatenation of `first` and `second`
+template <typename T>
+std::vector<T> joinVectors(std::vector<T> first, std::vector<T> second) {
+    std::vector<T> result;
+    result.reserve(first.size() + second.size());
+    result.insert(result.end(), first.begin(), first.end());
+    result.insert(result.end(), second.begin(), second.end());
+    return result;
 }
 
 int32_t main(int32_t argc, char **argv) {
@@ -208,20 +187,19 @@ int32_t main(int32_t argc, char **argv) {
                 DrivingDirection previousDirection; 
                 DrivingPattern previousPattern;
 
-                //cv::Mat filteredImage = filterImage(img,YELLOW_LOWER,YELLOW_UPPER);
-                cv::Mat filteredImage = filterImage(img,BLUE_LOWER,BLUE_UPPER);
+                // Blacking out the horizon and wires of the car
+                cv::rectangle(img, cv::Point(0, 0), cv::Point(640, 0.45 * 480), cv::Scalar(0, 0, 0), cv::FILLED);
+                cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0, 0, 0), cv::FILLED);
 
-                // Reduce noise by reducing the area in which the hsv values are filtered in (draw black rectangles over areas outside of cone detection areas)
-                cv::rectangle(filteredImage, cv::Point(0, 0), cv::Point(640, 0.45*480), cv::Scalar(0,0,0), cv::FILLED);
-                cv::rectangle(filteredImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0,0,0), cv::FILLED);
+                // Detecting both color cones [bounding rectangles]
+                std::vector<cv::Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
+                std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
 
-                // Find cone contours
-                std::vector<Rect> cones = detectCones(filteredImage);
-                
-           
-                //float calculatedSteering = calculateAngle(cones, YELLOW, &previousDirection, &previousPattern);
-                //float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
-                //bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
+                // Drawing bounding rectangles over detected cones
+                for (auto &cone : joinVectors(yellowCones, blueCones))
+                {
+                    cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
+                }
 
                 // Display image on your screen.
                 if (VERBOSE) {
@@ -234,24 +212,35 @@ int32_t main(int32_t argc, char **argv) {
                     //std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
                     
                     std::cout << "----------- CONES DETECTION -----------" << std::endl;
-		            conesWithCenter = filteredImage;
 
                     // If cones are detected, draw a point in the center of each rectangle
-                    if(cones.size()>0) {
-                      conesWithCenter = drawCenter(filteredImage,cones);
-                    
-
-
+                    if(yellowCones.size() > 0) {
+                      std::cout << "Yellow cones: " << std::endl;  
+                      img = drawCenter(img,yellowCones);
+                    }
+                     if(blueCones.size() > 0) {
+                      std::cout << "Blue cones: " << std::endl;   
+                      img = drawCenter(img,blueCones);
                     }
         		
-                    cv::imshow(sharedMemory->name().c_str(), conesWithCenter);
+                    cv::imshow(sharedMemory->name().c_str(), img);
 
                     cv::waitKey(1);
-                    int coneIndex = 1;
-                    for (auto& cone : cones) {
-                        std::cout << "Detected cone #" << coneIndex << ": ";
+
+                    // Logging detected cone locations and sizes
+                    int blueConeIndex = 1;
+                    int yellowConeIndex = 1;
+
+                    for (auto& cone : yellowCones) {
+                        std::cout << "Detected yellow cone #" << yellowConeIndex << ": ";
                         std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
-                        coneIndex++;
+                        yellowConeIndex++;
+                    }
+
+                    for (auto& cone : blueCones) {
+                        std::cout << "Detected blue cone #" << blueConeIndex << ": ";
+                        std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
+                        blueConeIndex++;
                     }
                 }
             }
@@ -264,7 +253,7 @@ int32_t main(int32_t argc, char **argv) {
 
 //Function definition
 // Find center of one rectangle
-cv::Point findCenter(Rect rectangle) {
+cv::Point findCenter(cv::Rect rectangle) {
     cv::Point center;
     center.x = rectangle.width/2+rectangle.x;
     center.y = rectangle.height/2+rectangle.y;
@@ -273,7 +262,7 @@ cv::Point findCenter(Rect rectangle) {
 }
 
 // Draw the point that represents the center of the given rectangle on the source img 
-cv::Mat drawCenter(cv::Mat sourceImg, std::vector<Rect> cones) {
+cv::Mat drawCenter(cv::Mat sourceImg, std::vector<cv::Rect> cones) {
     int carCenterX = (495-160)/2 + 160;
     int carCenterY = (479-390)/2 + 390;
 
