@@ -88,8 +88,15 @@ std::vector<cv::Rect> detectCones(cv::Mat sourceImage) {
 }
 
 // Calculates the angle for a given array of bounding rectangles and algorithm (yellow cones, blue cones)
-float calculateAngle(std::vector<cv::Rect> yellowCones, std::vector<cv::Rect> blueCones) {
-    return 0;
+// float calculateAngle(std::vector<cv::Rect> yellowCones, std::vector<cv::Rect> blueCones) {
+//     return 0;
+// }
+float calculateAngle(float leftVoltage, float rightVoltage) {
+    float squishFactor = 0.002;
+    float leftness = pow(leftVoltage, -1);
+    float rightness = pow(rightVoltage, -1);
+    float metric = leftness - rightness;
+    return 0.6 * pow(1 + pow(2.718, -squishFactor * metric), -1) - 0.3;
 }
 
 // Returns a vector concatenation of `first` and `second`
@@ -101,25 +108,6 @@ std::vector<T> joinVectors(std::vector<T> first, std::vector<T> second) {
     result.insert(result.end(), second.begin(), second.end());
     return result;
 }
-
-// Maps voltage request reading to distance in cm
-float voltageToDistance(float voltage) {
-    // float distance = 0.1594 * pow(1024 * voltage / 5, -0.8533) - 0.02916;
-    float distance = 13 * pow(voltage, -1);
-    return distance < 4 ? 4 : distance > 30 ? 30 : distance;
-
-    // var distance = 1.0 / (data.opendlv_proxy_VoltageReading.voltage / 10.13) - 3.8;
-    //     distance /= 100.0;
-    //     distance = (distance > 4.0) ? 4.0 : distance;
-}
-
-// float voltageToDistance(float voltageReading) {
-//   // Convert voltage to distance using the formula provided in the datasheet
-  
-// float distance = 27.86 * pow(voltageReading, -1.15);
-// return distance > 30 ? 30 : distance;
-    
-// }
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
@@ -156,12 +144,11 @@ int32_t main(int32_t argc, char **argv) {
             cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
 
             opendlv::proxy::GroundSteeringRequest gsr;
-            opendlv::proxy::VoltageReading vReading;
-            opendlv::proxy::VoltageRequest vRequest;
+            opendlv::proxy::VoltageReading vr;
+            int senderStamp;
             std::mutex gsrMutex;
-            std::mutex vReadingMutex;
-            std::mutex vRequestMutex;
-            
+            std::mutex vrMutex;
+
             auto onGroundSteeringRequest = [&gsr, &gsrMutex](cluon::data::Envelope &&env){
                 // The envelope data structure provide further details, such as sampleTimePoint as shown in this test case:
                 // https://github.com/chrberger/libcluon/blob/master/libcluon/testsuites/TestEnvelopeConverter.cpp#L31-L40
@@ -169,18 +156,13 @@ int32_t main(int32_t argc, char **argv) {
                 gsr = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(env));
             };
 
-            auto onVoltageReading = [&vReading, &vReadingMutex](cluon::data::Envelope &&env) {
-                std::lock_guard<std::mutex> lck(vReadingMutex);
-                vReading = cluon::extractMessage<opendlv::proxy::VoltageReading>(std::move(env));  
-            };
-
-            auto onVoltageRequest = [&vRequest, &vRequestMutex](cluon::data::Envelope &&env) {
-                std::lock_guard<std::mutex> lck(vRequestMutex);
-                vRequest = cluon::extractMessage<opendlv::proxy::VoltageRequest>(std::move(env));
+            auto onVoltageReading = [&vr, &vrMutex, &senderStamp](cluon::data::Envelope &&env) {
+                std::lock_guard<std::mutex> lck(vrMutex);
+                vr = cluon::extractMessage<opendlv::proxy::VoltageReading>(std::move(env));
+                senderStamp = env.senderStamp();
             };
 
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
-            od4.dataTrigger(opendlv::proxy::VoltageRequest::ID(), onVoltageRequest);
             od4.dataTrigger(opendlv::proxy::VoltageReading::ID(), onVoltageReading);
 
             // Endless loop; end the program by pressing Ctrl-C.
@@ -200,18 +182,18 @@ int32_t main(int32_t argc, char **argv) {
                 }
                 sharedMemory->unlock();
 
-                float groundSteering, voltageReading, voltageRequest;
+                float groundSteering, leftVoltage, rightVoltage;
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     groundSteering = gsr.groundSteering();
                 }
                 {
-                    std::lock_guard<std::mutex> lck(vReadingMutex);
-                    voltageReading = vReading.voltage();
-                }
-                {
-                    std::lock_guard<std::mutex> lck(vRequestMutex);
-                    voltageRequest = vRequest.voltage();
+                    std::lock_guard<std::mutex> lck(vrMutex);
+                    if(senderStamp == 1) {
+                        leftVoltage = vr.voltage();
+                    } else if(senderStamp == 3) {
+                        rightVoltage = vr.voltage();
+                    }
                 }
 
                 // Blacking out the horizon and wires of the car
@@ -223,7 +205,7 @@ int32_t main(int32_t argc, char **argv) {
                 std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
                 
                 // Testing metrics
-                float calculatedSteering = calculateAngle(yellowCones, blueCones);
+                float calculatedSteering = calculateAngle(leftVoltage, rightVoltage);
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
                 bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
@@ -235,13 +217,13 @@ int32_t main(int32_t argc, char **argv) {
                 // Display image on your screen.
                 if (VERBOSE) {
                     std::cout << "----------- FRAME REPORT -----------" << std::endl;
-                    std::cout << "[VOLTAGE READING] Got " << voltageReading << std::endl;
-                    std::cout << "[DISTANCE] Got " << voltageToDistance(voltageReading) << "." << std::endl;
-                    // std::cout << "[GROUND STEERING] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
-                    // std::cout << "[CALCULATED STEERING] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
+                    std::cout << "[LEFT VOLTAGE] Got " << leftVoltage << std::endl;
+                    std::cout << "[RIGHT VOLTAGE] Got " << rightVoltage << std::endl;
+                    std::cout << "[GROUND STEERING] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
+                    std::cout << "[CALCULATED STEERING] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
-                    // std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
+                    std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
                     cv::imshow(sharedMemory->name().c_str(), img);
 
                     cv::waitKey(1);
