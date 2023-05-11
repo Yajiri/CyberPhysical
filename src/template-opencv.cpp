@@ -18,6 +18,7 @@
 // Include the single-file, header-only middleware libcluon to create high-performance microservices
 #include "cluon-complete.hpp"
 // Include the OpenDLV Standard Message Set that contains messages that are usually exchanged for automotive or robotic applications 
+// #include "opendlv-standard-message-set.hpp"
 #include "opendlv-standard-message-set.hpp"
 
 // Include the GUI and image processing header files from OpenCV
@@ -101,6 +102,25 @@ std::vector<T> joinVectors(std::vector<T> first, std::vector<T> second) {
     return result;
 }
 
+// Maps voltage request reading to distance in cm
+float voltageToDistance(float voltage) {
+    // float distance = 0.1594 * pow(1024 * voltage / 5, -0.8533) - 0.02916;
+    float distance = 13 * pow(voltage, -1);
+    return distance < 4 ? 4 : distance > 30 ? 30 : distance;
+
+    // var distance = 1.0 / (data.opendlv_proxy_VoltageReading.voltage / 10.13) - 3.8;
+    //     distance /= 100.0;
+    //     distance = (distance > 4.0) ? 4.0 : distance;
+}
+
+// float voltageToDistance(float voltageReading) {
+//   // Convert voltage to distance using the formula provided in the datasheet
+  
+// float distance = 27.86 * pow(voltageReading, -1.15);
+// return distance > 30 ? 30 : distance;
+    
+// }
+
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
     int totalFrames = 0;
@@ -136,9 +156,11 @@ int32_t main(int32_t argc, char **argv) {
             cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
 
             opendlv::proxy::GroundSteeringRequest gsr;
-            opendlv::proxy::VoltageRequest vr;
+            opendlv::proxy::VoltageReading vReading;
+            opendlv::proxy::VoltageRequest vRequest;
             std::mutex gsrMutex;
-            std::mutex vrMutex;
+            std::mutex vReadingMutex;
+            std::mutex vRequestMutex;
             
             auto onGroundSteeringRequest = [&gsr, &gsrMutex](cluon::data::Envelope &&env){
                 // The envelope data structure provide further details, such as sampleTimePoint as shown in this test case:
@@ -147,15 +169,19 @@ int32_t main(int32_t argc, char **argv) {
                 gsr = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(env));
             };
 
-            auto onVoltageRequest = [&vr, &vrMutex](cluon::data::Envelope &&env) {
-                std::lock_guard<std::mutex> lck(vrMutex);
-                vr = cluon::extractMessage<opendlv::proxy::VoltageRequest>(std::move(env));  
+            auto onVoltageReading = [&vReading, &vReadingMutex](cluon::data::Envelope &&env) {
+                std::lock_guard<std::mutex> lck(vReadingMutex);
+                vReading = cluon::extractMessage<opendlv::proxy::VoltageReading>(std::move(env));  
+            };
+
+            auto onVoltageRequest = [&vRequest, &vRequestMutex](cluon::data::Envelope &&env) {
+                std::lock_guard<std::mutex> lck(vRequestMutex);
+                vRequest = cluon::extractMessage<opendlv::proxy::VoltageRequest>(std::move(env));
             };
 
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
-            //! `opendlv::proxy::VoltageRequest::ID()` returns 1083 which is the wrong id
-            // od4.dataTrigger(opendlv::proxy::VoltageRequest::ID(), onVoltageRequest);
-            od4.dataTrigger(1037, onVoltageRequest);
+            od4.dataTrigger(opendlv::proxy::VoltageRequest::ID(), onVoltageRequest);
+            od4.dataTrigger(opendlv::proxy::VoltageReading::ID(), onVoltageReading);
 
             // Endless loop; end the program by pressing Ctrl-C.
             while (od4.isRunning()) {
@@ -174,14 +200,18 @@ int32_t main(int32_t argc, char **argv) {
                 }
                 sharedMemory->unlock();
 
-                float groundSteering, voltage;
+                float groundSteering, voltageReading, voltageRequest;
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     groundSteering = gsr.groundSteering();
                 }
                 {
-                    std::lock_guard<std::mutex> lck(vrMutex);
-                    voltage = vr.voltage();
+                    std::lock_guard<std::mutex> lck(vReadingMutex);
+                    voltageReading = vReading.voltage();
+                }
+                {
+                    std::lock_guard<std::mutex> lck(vRequestMutex);
+                    voltageRequest = vRequest.voltage();
                 }
 
                 // Blacking out the horizon and wires of the car
@@ -205,7 +235,8 @@ int32_t main(int32_t argc, char **argv) {
                 // Display image on your screen.
                 if (VERBOSE) {
                     std::cout << "----------- FRAME REPORT -----------" << std::endl;
-                    std::cout << "[VOLTAGE] Got " << voltage << "." << std::endl;
+                    std::cout << "[VOLTAGE READING] Got " << voltageReading << std::endl;
+                    std::cout << "[DISTANCE] Got " << voltageToDistance(voltageReading) << "." << std::endl;
                     // std::cout << "[GROUND STEERING] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
                     // std::cout << "[CALCULATED STEERING] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
                     totalFrames++;
