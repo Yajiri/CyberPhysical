@@ -119,8 +119,8 @@ std::vector<T> joinVectors(std::vector<T> first, std::vector<T> second) {
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
-    int totalFrames = 0;
-    int correctFrames = 0;
+    int totalFrames = 0, correctFrames = 0;
+    float leftVoltage, rightVoltage;
     cv::Point coneCenter;
     cv::Mat conesWithCenter;
     
@@ -156,9 +156,7 @@ int32_t main(int32_t argc, char **argv) {
 
             opendlv::proxy::GroundSteeringRequest gsr;
             opendlv::proxy::VoltageReading vr;
-            int senderStamp;
-            std::mutex gsrMutex;
-            std::mutex vrMutex;
+            std::mutex gsrMutex, vrMutex;
 
             auto onGroundSteeringRequest = [&gsr, &gsrMutex](cluon::data::Envelope &&env){
                 // The envelope data structure provide further details, such as sampleTimePoint as shown in this test case:
@@ -167,10 +165,12 @@ int32_t main(int32_t argc, char **argv) {
                 gsr = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(env));
             };
 
-            auto onVoltageReading = [&vr, &vrMutex, &senderStamp](cluon::data::Envelope &&env) {
+            auto onVoltageReading = [&vr, &vrMutex, &leftVoltage, &rightVoltage](cluon::data::Envelope &&env) {
                 std::lock_guard<std::mutex> lck(vrMutex);
                 vr = cluon::extractMessage<opendlv::proxy::VoltageReading>(std::move(env));
-                senderStamp = env.senderStamp();
+                int senderStamp = env.senderStamp();
+                if(senderStamp == 1) leftVoltage = vr.voltage();
+                if(senderStamp == 3) rightVoltage = vr.voltage();
             };
 
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
@@ -193,25 +193,16 @@ int32_t main(int32_t argc, char **argv) {
                 }
                 sharedMemory->unlock();
 
-                float groundSteering, leftVoltage, rightVoltage;
+                float groundSteering;
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     groundSteering = gsr.groundSteering();
-                }
-                {
-                    std::lock_guard<std::mutex> lck(vrMutex);
-                    // TODO: reliably set left and right voltages; currently at least one of them is lagging behind
-                    if(senderStamp == 1) {
-                        leftVoltage = vr.voltage();
-                    } else if(senderStamp == 3) {
-                        rightVoltage = vr.voltage();
-                    }
                 }
                 
                 // Detecting both color cones [bounding rectangles]
                 std::vector<cv::Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
                 std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
-                
+
                 // Testing metrics
                 float calculatedSteering = calculateAngle(leftVoltage, rightVoltage);
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
@@ -237,7 +228,9 @@ int32_t main(int32_t argc, char **argv) {
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
                     std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
+                    std::cout << "LEFT = " << leftVoltage << "; RIGHT = " << rightVoltage << ";" << std::endl;
                     // std::cout << "----------- CONES DETECTION -----------" << std::endl;
+                    
                     // If cones are detected, draw a point in the center of each rectangle
                     if(yellowCones.size() > 0) {
                     //   std::cout << "Yellow cones: " << std::endl;  
