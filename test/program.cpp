@@ -28,90 +28,7 @@
 #include <string>
 #include <memory>
 #include <stdexcept>
-
-// TODO: clean up code structure with header files
-// TODO: resolve compilation warnings
-
-// Declaring constants
-std::tuple<cv::Scalar, cv::Scalar> YELLOW_FILTER = {cv::Scalar(15, 62, 139), cv::Scalar(40, 255, 255)};
-std::tuple<cv::Scalar, cv::Scalar> BLUE_FILTER = {cv::Scalar(110, 91, 45), cv::Scalar(134, 194, 96)};
-
-double CONTOUR_AREA_THRESHOLD = 5;
-double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
-double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
-
-
-// Filters and image out-place according to HSV bounds and returns it.
-cv::Mat filterImage(cv::Mat sourceImage, std::tuple<cv::Scalar, cv::Scalar> filter) {
-    cv::Mat imgHSV, filteredImage, mask;
-    cv::cvtColor(sourceImage, imgHSV, cv::COLOR_BGR2HSV);
-    cv::inRange(imgHSV, std::get<0>(filter), std::get<1>(filter), mask);
-    sourceImage.copyTo(filteredImage, mask);
-    return filteredImage;
-}
-
-// Detects cones by drawing a red rectangle over them and returns the detected cones as an array of Rect
-std::vector<cv::Rect> detectCones(cv::Mat sourceImage) {
-    cv::Mat grayImage, binaryImage, morphedImage;
-
-    // Convert `sourceImage` to grayscale and store it in `grayImage`
-    cv::cvtColor(sourceImage, grayImage, cv::COLOR_BGR2GRAY);
-
-    // Apply threshold 
-    cv::threshold(grayImage, binaryImage, 0, 255, cv::THRESH_BINARY);
-
-    // Perform morphological operations
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
-    cv::erode(binaryImage, morphedImage, kernel);
-    cv::dilate(morphedImage, morphedImage, kernel);
-
-    // Find all contours
-    std::vector<std::vector<cv::Point>> contours;
-    std::vector<cv::Vec4i> hierarchy;
-    cv::findContours(morphedImage, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-
-    // Filter contours by area
-    std::vector<std::vector<cv::Point>> filteredContours;
-    for (const auto& contour : contours) {
-        double area = cv::contourArea(contour);
-        if (area > CONTOUR_AREA_THRESHOLD) {
-            filteredContours.push_back(contour);
-        }
-    }
-
-    std::vector<cv::Rect> boundingRectangles;
-    
-    // Draw bounding boxes
-    for (const auto& contour : filteredContours) {
-        cv::Rect boundingRect = cv::boundingRect(contour);
-        boundingRectangles.push_back(boundingRect);
-        cv::rectangle(sourceImage, boundingRect, cv::Scalar(0, 0, 255), 2);
-    }
-    
-    return boundingRectangles;
-}
-
-// Calculates steering angle based on voltage read from left and right IR sensors respectively
-float calculateAngle(float leftVoltage, float rightVoltage) {
-    // TODO: find the best squish factor
-    // TODO: experiment with non-sigmoid squish functions
-    // TODO: test 1) playing backwards 2) still frames 3) arbitrary frames 4) all recording files
-    float squishFactor = 0.002;
-    float leftness = pow(leftVoltage, -1);
-    float rightness = pow(rightVoltage, -1);
-    float metric = leftness - rightness;
-    return 0.6 * pow(1 + pow(2.718, -squishFactor * metric), -1) - 0.3;
-}
-
-// Returns a vector concatenation of `first` and `second`
-template <typename T>
-std::vector<T> joinVectors(std::vector<T> first, std::vector<T> second) {
-    std::vector<T> result;
-    result.reserve(first.size() + second.size());
-    result.insert(result.end(), first.begin(), first.end());
-    result.insert(result.end(), second.begin(), second.end());
-    return result;
-}
+#include "solution.hpp"
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
@@ -175,7 +92,8 @@ int32_t main(int32_t argc, char **argv) {
             // Endless loop; end the program by pressing Ctrl-C.
             while (od4.isRunning()) {
                 // OpenCV data structure to hold an image.
-                cv::Mat img;
+                cv::Mat baseImage; // base image over which only bounding rectangles are drawn
+                cv::Mat dummyImage; // filtered image on which image processing is applied
 
                 // Wait for a notification of a new frame.
                 sharedMemory->wait();
@@ -185,7 +103,7 @@ int32_t main(int32_t argc, char **argv) {
                 {
                     // Copy the pixels from the shared memory into our own data structure.
                     cv::Mat wrapped(HEIGHT, WIDTH, CV_8UC4, sharedMemory->data());
-                    img = wrapped.clone();
+                    baseImage = wrapped.clone();
                 }
                 sharedMemory->unlock();
 
@@ -194,19 +112,25 @@ int32_t main(int32_t argc, char **argv) {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     groundSteering = gsr.groundSteering();
                 }
-                
+
+                baseImage.copyTo(dummyImage);
+            
+                // Blacking out the horizon and wires of the car
+                cv::rectangle(dummyImage, cv::Point(0, 0), cv::Point(640, 0.45 * 480), cv::Scalar(0, 0, 0), cv::FILLED);
+                cv::rectangle(dummyImage, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0, 0, 0), cv::FILLED);
+
                 // Detecting both color cones [bounding rectangles]
-                std::vector<cv::Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
-                std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
+                std::vector<cv::Rect> yellowCones = detectCones(filterImage(dummyImage, YELLOW_FILTER));
+                std::vector<cv::Rect> blueCones = detectCones(filterImage(dummyImage, BLUE_FILTER));
 
                 // Testing metrics
                 float calculatedSteering = calculateAngle(leftVoltage, rightVoltage);
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
                 bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
-                // Blacking out the horizon and wires of the car
-                cv::rectangle(img, cv::Point(0, 0), cv::Point(640, 0.45 * 480), cv::Scalar(0, 0, 0), cv::FILLED);
-                cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0, 0, 0), cv::FILLED);
+                for (auto &cone : joinVectors(yellowCones, blueCones)) {
+                    cv::rectangle(baseImage, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
+                }
 
                 // Display image on your screen.
                 if (VERBOSE) {
@@ -218,20 +142,8 @@ int32_t main(int32_t argc, char **argv) {
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
                     std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
-                    std::cout << "LEFT = " << leftVoltage << "; RIGHT = " << rightVoltage << ";" << std::endl;
-                    // std::cout << "----------- CONES DETECTION -----------" << std::endl;
-                    
-                    // If cones are detected, draw a point in the center of each rectangle
-                    if(yellowCones.size() > 0) {
-                    //   std::cout << "Yellow cones: " << std::endl;  
-                    //   img = drawCenter(img,yellowCones);
-                    }
-                     if(blueCones.size() > 0) {
-                    //   std::cout << "Blue cones: " << std::endl;   
-                    //   img = drawCenter(img,blueCones);
-                    }
         		
-                    cv::imshow(sharedMemory->name().c_str(), img);
+                    cv::imshow(sharedMemory->name().c_str(), baseImage);
 
                     cv::waitKey(1);
                 }

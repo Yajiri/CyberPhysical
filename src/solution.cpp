@@ -129,8 +129,7 @@ int32_t main(int32_t argc, char **argv) {
                 cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0, 0, 0), cv::FILLED);
 
                 // Drawing bounding rectangles over detected cones
-                for (auto &cone : joinVectors(yellowCones, blueCones))
-                {
+                for (auto &cone : joinVectors(yellowCones, blueCones)) {
                     cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
                 }
 
