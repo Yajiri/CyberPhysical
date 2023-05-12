@@ -87,12 +87,12 @@ std::vector<cv::Rect> detectCones(cv::Mat sourceImage) {
     return boundingRectangles;
 }
 
-// Calculates the angle for a given array of bounding rectangles and algorithm (yellow cones, blue cones)
-// float calculateAngle(std::vector<cv::Rect> yellowCones, std::vector<cv::Rect> blueCones) {
-//     return 0;
-// }
+// Calculates steering angle based on voltage read from left and right IR sensors respectively
 float calculateAngle(float leftVoltage, float rightVoltage) {
-    float squishFactor = 0.002;
+    // TODO: find the best squish factor
+    // TODO: experiment with non-sigmoid squish functions
+    // TODO: test 1) playing backwards 2) still frames 3) arbitrary frames 4) all recording files
+    float squishFactor = 0.005;
     float leftness = pow(leftVoltage, -1);
     float rightness = pow(rightVoltage, -1);
     float metric = leftness - rightness;
@@ -189,6 +189,7 @@ int32_t main(int32_t argc, char **argv) {
                 }
                 {
                     std::lock_guard<std::mutex> lck(vrMutex);
+                    // TODO: reliably set left and right voltages; currently at least one of them is lagging behind
                     if(senderStamp == 1) {
                         leftVoltage = vr.voltage();
                     } else if(senderStamp == 3) {
@@ -234,7 +235,6 @@ int32_t main(int32_t argc, char **argv) {
                     for (auto& cone : yellowCones) {
                         // std::cout << "Detected yellow cone #" << coneIndex << ": ";
                         // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
-                        
                         yellowConeIndex++;
                     }
                     for (auto& cone : blueCones) {
@@ -249,4 +249,3 @@ int32_t main(int32_t argc, char **argv) {
     }
     return retCode;
 }
-
