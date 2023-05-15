@@ -120,7 +120,7 @@ int32_t main(int32_t argc, char **argv) {
                 std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
 
                 // Testing metrics
-                float calculatedSteering = calculateAngle(leftVoltage, rightVoltage);
+                float calculatedSteering = calculateAngle(leftVoltage, rightVoltage, false);
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
                 bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 

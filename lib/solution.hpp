@@ -9,6 +9,7 @@ std::tuple<cv::Scalar, cv::Scalar> BLUE_FILTER = {cv::Scalar(110, 91, 45), cv::S
 double CONTOUR_AREA_THRESHOLD = 5;
 double ERROR_GROUND_ZERO = 0.05; // The allowed absolute deviation if the ground angle is zero
 double ERROR_MULTI = 0.3; // The allowed relative deviation if the angle is not zero
+double ANGLE_AMPLITUDE = 0.3;
 
 // Detects cones by drawing a red rectangle over them and returns the detected cones as an array of Rect
 std::vector<cv::Rect> detectCones(cv::Mat sourceImage) {
@@ -52,15 +53,20 @@ std::vector<cv::Rect> detectCones(cv::Mat sourceImage) {
 }
 
 // Calculates steering angle based on voltage read from left and right IR sensors respectively
-float calculateAngle(float leftVoltage, float rightVoltage) {
+float calculateAngle(float leftVoltage, float rightVoltage, bool useSigmoid) {
     // TODO: find the best squish factor
     // TODO: experiment with non-sigmoid squish functions
     // TODO: test 1) playing backwards 2) still frames 3) arbitrary frames 4) all recording files
-    float squishFactor = 0.002;
     float leftness = pow(leftVoltage, -1);
     float rightness = pow(rightVoltage, -1);
     float metric = leftness - rightness;
-    return 0.6 * pow(1 + pow(2.718, -squishFactor * metric), -1) - 0.3;
+    if(useSigmoid) {
+        float squishFactor = 0.002;
+        return 0.6 * pow(1 + pow(2.718, -squishFactor * metric), -1) - 0.3;
+    } else {
+        float squishFactor = 0.00005;
+        return metric < -ANGLE_AMPLITUDE * squishFactor ? -ANGLE_AMPLITUDE : metric > ANGLE_AMPLITUDE * squishFactor ? ANGLE_AMPLITUDE : squishFactor * metric; 
+    }
 }
 
 // Returns a vector concatenation of `first` and `second`
