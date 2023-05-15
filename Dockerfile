@@ -35,7 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Include this source tree and compile the sources
 ADD . /opt/sources
 WORKDIR /opt/sources
-RUN mkdir build && \
+RUN cd src && \
+    mkdir build && \
     cd build && \
     cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/tmp .. && \
     make && make install
@@ -58,6 +59,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get upgrade -y
 
 WORKDIR /usr/bin
-COPY --from=builder /tmp/bin/template-opencv .
+COPY --from=builder /tmp/bin/solution .
 # This is the entrypoint when starting the Docker container; hence, this Docker image is automatically starting our software on its creation
-ENTRYPOINT ["/usr/bin/template-opencv"]
+ENTRYPOINT ["/usr/bin/solution"]
