@@ -122,13 +122,24 @@ int32_t main(int32_t argc, char **argv) {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     groundSteering = gsr.groundSteering();
                 }
+
+                float calculatedSteering;                
+                
+                if(angVelZ <= 0) {
+                    if(angVelZ<-78) angVelZ = -78;
+
+                    calculatedSteering = (angVelZ - (-78)) / 78 * 0.3 - 0.3;
+                }else if(angVelZ > 0) {
+                    if(angVelZ < 2) 
+                        angVelZ = 1;
+                    calculatedSteering = ((angVelZ - 1)/100)*0.3; 
+                }
                 
                 // Detecting both color cones [bounding rectangles]
                 std::vector<cv::Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
                 std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
 
                 // Testing metrics
-                float calculatedSteering = calculateAngle(leftVoltage, rightVoltage, false);
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
                 bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
 
