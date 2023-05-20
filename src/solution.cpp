@@ -72,7 +72,8 @@ int32_t main(int32_t argc, char **argv) {
 
             opendlv::proxy::GroundSteeringRequest gsr;
             opendlv::proxy::VoltageReading vr;
-            std::mutex gsrMutex, vrMutex;
+            opendlv::proxy::AngularVelocityReading avr;
+            std::mutex gsrMutex, vrMutex, avrMutex;
 
             auto onGroundSteeringRequest = [&gsr, &gsrMutex](cluon::data::Envelope &&env){
                 // The envelope data structure provide further details, such as sampleTimePoint as shown in this test case:
@@ -89,13 +90,20 @@ int32_t main(int32_t argc, char **argv) {
                 if(senderStamp == 3) rightVoltage = vr.voltage();
             };
 
+            auto onAngularVelocityReading = [&avr, &avrMutex](cluon::data::Envelope &&env) {
+                std::lock_guard<std::mutex> lck(avrMutex);
+                avr = cluon::extractMessage<opendlv::proxy::AngularVelocityReading>(std::move(env));
+            };
+
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
             od4.dataTrigger(opendlv::proxy::VoltageReading::ID(), onVoltageReading);
-
+            od4.dataTrigger(opendlv::proxy::AngularVelocityReading::ID(), onAngularVelocityReading);
+            
             // Endless loop; end the program by pressing Ctrl-C.
             while (od4.isRunning()) {
                 // OpenCV data structure to hold an image.
                 cv::Mat img;
+                double angVelZ = 0.0;
 
                 // Wait for a notification of a new frame.
                 sharedMemory->wait();
