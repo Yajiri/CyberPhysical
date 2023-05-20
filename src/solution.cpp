@@ -36,7 +36,6 @@
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
     int totalFrames = 0, correctFrames = 0;
-    float leftVoltage, rightVoltage;
     cv::Point coneCenter;
     cv::Mat conesWithCenter;
     
@@ -71,9 +70,8 @@ int32_t main(int32_t argc, char **argv) {
             cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
 
             opendlv::proxy::GroundSteeringRequest gsr;
-            opendlv::proxy::VoltageReading vr;
             opendlv::proxy::AngularVelocityReading avr;
-            std::mutex gsrMutex, vrMutex, avrMutex;
+            std::mutex gsrMutex, avrMutex;
 
             auto onGroundSteeringRequest = [&gsr, &gsrMutex](cluon::data::Envelope &&env){
                 // The envelope data structure provide further details, such as sampleTimePoint as shown in this test case:
@@ -82,13 +80,7 @@ int32_t main(int32_t argc, char **argv) {
                 gsr = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(env));
             };
 
-            auto onVoltageReading = [&vr, &vrMutex, &leftVoltage, &rightVoltage](cluon::data::Envelope &&env) {
-                std::lock_guard<std::mutex> lck(vrMutex);
-                vr = cluon::extractMessage<opendlv::proxy::VoltageReading>(std::move(env));
-                int senderStamp = env.senderStamp();
-                if(senderStamp == 1) leftVoltage = vr.voltage();
-                if(senderStamp == 3) rightVoltage = vr.voltage();
-            };
+
 
             auto onAngularVelocityReading = [&avr, &avrMutex](cluon::data::Envelope &&env) {
                 std::lock_guard<std::mutex> lck(avrMutex);
@@ -96,7 +88,6 @@ int32_t main(int32_t argc, char **argv) {
             };
 
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
-            od4.dataTrigger(opendlv::proxy::VoltageReading::ID(), onVoltageReading);
             od4.dataTrigger(opendlv::proxy::AngularVelocityReading::ID(), onAngularVelocityReading);
             
             // Endless loop; end the program by pressing Ctrl-C.
@@ -127,7 +118,6 @@ int32_t main(int32_t argc, char **argv) {
                 
                 if(angVelZ <= 0) {
                     if(angVelZ<-78) angVelZ = -78;
-
                     calculatedSteering = (angVelZ - (-78)) / 78 * 0.3 - 0.3;
                 }else if(angVelZ > 0) {
                     if(angVelZ < 2) 
@@ -136,8 +126,8 @@ int32_t main(int32_t argc, char **argv) {
                 }
                 
                 // Detecting both color cones [bounding rectangles]
-                std::vector<cv::Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
-                std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
+                // std::vector<cv::Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
+                // std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
 
                 // Testing metrics
                 float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
@@ -148,51 +138,24 @@ int32_t main(int32_t argc, char **argv) {
                 cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0, 0, 0), cv::FILLED);
 
                 // Drawing bounding rectangles over detected cones
-                for (auto &cone : joinVectors(yellowCones, blueCones)) {
-                    cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
-                }
+                // for (auto &cone : joinVectors(yellowCones, blueCones)) {
+                //     cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
+                // }
 
                 // Display image on your screen.
                 if (VERBOSE) {
                     std::cout << "----------- FRAME REPORT -----------" << std::endl;
-                    std::cout << "[LEFT VOLTAGE] Got " << leftVoltage << std::endl;
-                    std::cout << "[RIGHT VOLTAGE] Got " << rightVoltage << std::endl;
+                   
                     std::cout << "[GROUND STEERING] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
                     std::cout << "[CALCULATED STEERING] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
                     std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
-                    std::cout << "LEFT = " << leftVoltage << "; RIGHT = " << rightVoltage << ";" << std::endl;
-                    // std::cout << "----------- CONES DETECTION -----------" << std::endl;
-                    
-                    // If cones are detected, draw a point in the center of each rectangle
-                    if(yellowCones.size() > 0) {
-                    //   std::cout << "Yellow cones: " << std::endl;  
-                    //   img = drawCenter(img,yellowCones);
-                    }
-                     if(blueCones.size() > 0) {
-                    //   std::cout << "Blue cones: " << std::endl;   
-                    //   img = drawCenter(img,blueCones);
-                    }
-        		
+                            		
                     cv::imshow(sharedMemory->name().c_str(), img);
 
                     cv::waitKey(1);
 
-                    // Logging detected cone locations and sizes
-                    int blueConeIndex = 1;
-                    int yellowConeIndex = 1;
-                    for (auto& cone : yellowCones) {
-                        // std::cout << "Detected yellow cone #" << yellowConeIndex << ": ";
-                        // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
-                        yellowConeIndex++;
-                    }
-
-                    for (auto& cone : blueCones) {
-                        // std::cout << "Detected blue cone #" << blueConeIndex << ": ";
-                        // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
-                        blueConeIndex++;
-                    }
                 }
             }
         }
