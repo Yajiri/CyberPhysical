@@ -28,17 +28,13 @@
 #include <string>
 #include <memory>
 #include <stdexcept>
+#include <iostream>
+#include <fstream>
 
-#include "solution.hpp"
-
-// TODO: resolve compilation warnings
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
     int totalFrames = 0, correctFrames = 0;
-    float leftVoltage, rightVoltage;
-    cv::Point coneCenter;
-    cv::Mat conesWithCenter;
     
     // Parse the command line parameters as we require the user to specify some mandatory information on startup.
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
@@ -71,8 +67,8 @@ int32_t main(int32_t argc, char **argv) {
             cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
 
             opendlv::proxy::GroundSteeringRequest gsr;
-            opendlv::proxy::VoltageReading vr;
-            std::mutex gsrMutex, vrMutex;
+            opendlv::proxy::AngularVelocityReading avr;
+            std::mutex gsrMutex, vrMutex, avrMutex;
 
             auto onGroundSteeringRequest = [&gsr, &gsrMutex](cluon::data::Envelope &&env){
                 // The envelope data structure provide further details, such as sampleTimePoint as shown in this test case:
@@ -81,22 +77,22 @@ int32_t main(int32_t argc, char **argv) {
                 gsr = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(env));
             };
 
-            auto onVoltageReading = [&vr, &vrMutex, &leftVoltage, &rightVoltage](cluon::data::Envelope &&env) {
-                std::lock_guard<std::mutex> lck(vrMutex);
-                vr = cluon::extractMessage<opendlv::proxy::VoltageReading>(std::move(env));
-                int senderStamp = env.senderStamp();
-                if(senderStamp == 1) leftVoltage = vr.voltage();
-                if(senderStamp == 3) rightVoltage = vr.voltage();
+            auto onAngularVelocityReading = [&avr, &avrMutex](cluon::data::Envelope &&env) {
+                std::lock_guard<std::mutex> lck(avrMutex);
+                avr = cluon::extractMessage<opendlv::proxy::AngularVelocityReading>(std::move(env));
             };
 
+            
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
-            od4.dataTrigger(opendlv::proxy::VoltageReading::ID(), onVoltageReading);
+            od4.dataTrigger(opendlv::proxy::AngularVelocityReading::ID(), onAngularVelocityReading);
+
 
             // Endless loop; end the program by pressing Ctrl-C.
             while (od4.isRunning()) {
                 // OpenCV data structure to hold an image.
                 cv::Mat img;
-
+                double angVelZ = 0.0;
+                std::cout << "group_02;";
                 // Wait for a notification of a new frame.
                 sharedMemory->wait();
 
@@ -106,77 +102,73 @@ int32_t main(int32_t argc, char **argv) {
                     // Copy the pixels from the shared memory into our own data structure.
                     cv::Mat wrapped(HEIGHT, WIDTH, CV_8UC4, sharedMemory->data());
                     img = wrapped.clone();
+
+                    angVelZ = avr.angularVelocityZ();
+
+                    std::cout << cluon::time::toMicroseconds(sharedMemory->getTimeStamp().second) << ";";
+
+                    
                 }
+                
                 sharedMemory->unlock();
 
                 float groundSteering;
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     groundSteering = gsr.groundSteering();
-                }
                 
-                // Detecting both color cones [bounding rectangles]
-                std::vector<cv::Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
-                std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
-
-                // Testing metrics
-                float calculatedSteering = calculateAngle(leftVoltage, rightVoltage, false);
-                float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
-                bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
+                }
 
                 // Blacking out the horizon and wires of the car
-                cv::rectangle(img, cv::Point(0, 0), cv::Point(640, 0.45 * 480), cv::Scalar(0, 0, 0), cv::FILLED);
+                cv::rectangle(img, cv::Point(0, 0), cv::Point(640, 0.5 * 480), cv::Scalar(0, 0, 0), cv::FILLED);
                 cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0, 0, 0), cv::FILLED);
 
-                // Drawing bounding rectangles over detected cones
-                for (auto &cone : joinVectors(yellowCones, blueCones)) {
-                    cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
+                
+                float calculatedSteering;                
+                
+                if(angVelZ <= 0) {
+                    if(angVelZ<-78) angVelZ = -78;
+
+                    calculatedSteering = (angVelZ - (-78)) / 78 * 0.3 - 0.3;
+                }else if(angVelZ > 0) {
+                    if(angVelZ < 2) 
+                        angVelZ = 1;
+                    calculatedSteering = ((angVelZ - 1)/100)*0.3; 
                 }
+                std::cout<< calculatedSteering << std::endl;
+                
+
+                float dGroundSteering = groundSteering == 0 ? 0.05 : std::abs(0.3 * groundSteering);
+                bool calculatedWithinInterval = std::abs(groundSteering - calculatedSteering) <= dGroundSteering;
 
                 // Display image on your screen.
                 if (VERBOSE) {
-                    std::cout << "----------- FRAME REPORT -----------" << std::endl;
-                    std::cout << "[LEFT VOLTAGE] Got " << leftVoltage << std::endl;
-                    std::cout << "[RIGHT VOLTAGE] Got " << rightVoltage << std::endl;
-                    std::cout << "[GROUND STEERING] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
-                    std::cout << "[CALCULATED STEERING] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
+                    // Define the positions for the text
+                    cv::Point angularVelocityPos(10, 30);
+                    cv::Point frameReportPos(10, 70);
+
+                    // Define the font size
+                    double fontSize = 0.6;
+
+                    // Print the angular velocity information
+                    std::string angularVelocityText = "Angular Velocity: " + std::to_string(angVelZ);
+                    cv::putText(img, angularVelocityText, angularVelocityPos, cv::FONT_HERSHEY_SIMPLEX, fontSize, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+
+                    // Print the frame report information
+                    cv::putText(img, "----------- FRAME REPORT -----------", frameReportPos, cv::FONT_HERSHEY_SIMPLEX, fontSize, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+                    cv::putText(img, "[GS] Got " + std::to_string(groundSteering) + ". Allowed [" + std::to_string(groundSteering - dGroundSteering) + "," + std::to_string(groundSteering + dGroundSteering) + "]", cv::Point(frameReportPos.x, frameReportPos.y + 30), cv::FONT_HERSHEY_SIMPLEX, fontSize, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+                    cv::putText(img, "[CS] Got " + std::to_string(calculatedSteering) + ". " + (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]"), cv::Point(frameReportPos.x, frameReportPos.y + 60), cv::FONT_HERSHEY_SIMPLEX, fontSize, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
-                    std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
-                    std::cout << "LEFT = " << leftVoltage << "; RIGHT = " << rightVoltage << ";" << std::endl;
-                    // std::cout << "----------- CONES DETECTION -----------" << std::endl;
-                    
-                    // If cones are detected, draw a point in the center of each rectangle
-                    if(yellowCones.size() > 0) {
-                    //   std::cout << "Yellow cones: " << std::endl;  
-                    //   img = drawCenter(img,yellowCones);
-                    }
-                     if(blueCones.size() > 0) {
-                    //   std::cout << "Blue cones: " << std::endl;   
-                    //   img = drawCenter(img,blueCones);
-                    }
-        		
+                    cv::putText(img, "[RESULT] Correctly calculated " + std::to_string((float)(100 * correctFrames) / (float)totalFrames) + "% frames", cv::Point(frameReportPos.x, frameReportPos.y + 90), cv::FONT_HERSHEY_SIMPLEX, fontSize, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+
                     cv::imshow(sharedMemory->name().c_str(), img);
-
                     cv::waitKey(1);
-
-                    // Logging detected cone locations and sizes
-                    int blueConeIndex = 1;
-                    int yellowConeIndex = 1;
-                    for (auto& cone : yellowCones) {
-                        // std::cout << "Detected yellow cone #" << yellowConeIndex << ": ";
-                        // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
-                        yellowConeIndex++;
-                    }
-
-                    for (auto& cone : blueCones) {
-                        // std::cout << "Detected blue cone #" << blueConeIndex << ": ";
-                        // std::cout << "x = " << cone.x << "; y = " << cone.y << "; width = " << cone.width << "; height = " << cone.height << ";" << std::endl;
-                        blueConeIndex++;
-                    }
                 }
             }
         }
+
         retCode = 0;
     }
     return retCode;
