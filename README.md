@@ -27,7 +27,11 @@ If the build process is successful, you can run the resulting image inside a con
 ```sh
 docker run --rm CID/example:latest 42
 ```
+# How to run scripts
+Inside of the script folder there are some .sh files, these are called scripts and are used to build and run the 3 microservices. These can be run as a program if you right click them and select run as a program.
 
+# Gnuplot
+If you have not installed gnuplot on your local device then there is a script to install it inside the script folder. There are also a script for starting the gnuplot inside the script folder, when the program is running you type; load "graph.gnu" , and it will create the graph by combining the values within the GS.txt and calculateGS.txt and putting them in a graph. Don't forget to type; q ,into gnuplot to end the program. 
 # How to work with Git and GitLab
 
 ## How to make a commit?
