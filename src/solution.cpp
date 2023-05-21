@@ -31,8 +31,6 @@
 #include <iostream>
 #include <fstream>
 
-// TODO: resolve compilation warnings
-
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
@@ -94,7 +92,7 @@ int32_t main(int32_t argc, char **argv) {
                 // OpenCV data structure to hold an image.
                 cv::Mat img;
                 double angVelZ = 0.0;
-
+                std::cout << "group_02;";
                 // Wait for a notification of a new frame.
                 sharedMemory->wait();
 
@@ -107,20 +105,22 @@ int32_t main(int32_t argc, char **argv) {
 
                     angVelZ = avr.angularVelocityZ();
 
-                    //std::cout << cluon::time::toMicroseconds(sharedMemory->getTimeStamp().second) << " ";
+                    std::cout << cluon::time::toMicroseconds(sharedMemory->getTimeStamp().second) << ";";
+
                     
                 }
+                
                 sharedMemory->unlock();
 
                 float groundSteering;
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     groundSteering = gsr.groundSteering();
-                    //std::cout << groundSteering << " ";
+                
                 }
 
                 // Blacking out the horizon and wires of the car
-                cv::rectangle(img, cv::Point(0, 0), cv::Point(640, 0.45 * 480), cv::Scalar(0, 0, 0), cv::FILLED);
+                cv::rectangle(img, cv::Point(0, 0), cv::Point(640, 0.5 * 480), cv::Scalar(0, 0, 0), cv::FILLED);
                 cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0, 0, 0), cv::FILLED);
 
                 
@@ -135,29 +135,36 @@ int32_t main(int32_t argc, char **argv) {
                         angVelZ = 1;
                     calculatedSteering = ((angVelZ - 1)/100)*0.3; 
                 }
+                std::cout<< calculatedSteering << std::endl;
                 
 
                 float dGroundSteering = groundSteering == 0 ? 0.05 : std::abs(0.3 * groundSteering);
                 bool calculatedWithinInterval = std::abs(groundSteering - calculatedSteering) <= dGroundSteering;
 
-
                 // Display image on your screen.
                 if (VERBOSE) {
-                    
-                    
-                    std::cout << "----------- FRAME REPORT -----------" << std::endl;
-                    std::cout << "[GROUND STEERING] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
-                    std::cout << "[CALCULATED STEERING] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
+                    // Define the positions for the text
+                    cv::Point angularVelocityPos(10, 30);
+                    cv::Point frameReportPos(10, 70);
+
+                    // Define the font size
+                    double fontSize = 0.6;
+
+                    // Print the angular velocity information
+                    std::string angularVelocityText = "Angular Velocity: " + std::to_string(angVelZ);
+                    cv::putText(img, angularVelocityText, angularVelocityPos, cv::FONT_HERSHEY_SIMPLEX, fontSize, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+
+                    // Print the frame report information
+                    cv::putText(img, "----------- FRAME REPORT -----------", frameReportPos, cv::FONT_HERSHEY_SIMPLEX, fontSize, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+                    cv::putText(img, "[GS] Got " + std::to_string(groundSteering) + ". Allowed [" + std::to_string(groundSteering - dGroundSteering) + "," + std::to_string(groundSteering + dGroundSteering) + "]", cv::Point(frameReportPos.x, frameReportPos.y + 30), cv::FONT_HERSHEY_SIMPLEX, fontSize, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+                    cv::putText(img, "[CS] Got " + std::to_string(calculatedSteering) + ". " + (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]"), cv::Point(frameReportPos.x, frameReportPos.y + 60), cv::FONT_HERSHEY_SIMPLEX, fontSize, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
 
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
-                    std::cout << "[RESULT] Correctly calculated " << (float)(100 * correctFrames) / (float)totalFrames << "\% frames" << std::endl;
-                
-                    
+                    cv::putText(img, "[RESULT] Correctly calculated " + std::to_string((float)(100 * correctFrames) / (float)totalFrames) + "% frames", cv::Point(frameReportPos.x, frameReportPos.y + 90), cv::FONT_HERSHEY_SIMPLEX, fontSize, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+
                     cv::imshow(sharedMemory->name().c_str(), img);
                     cv::waitKey(1);
-
-                   
                 }
             }
         }
