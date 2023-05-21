@@ -28,16 +28,15 @@
 #include <string>
 #include <memory>
 #include <stdexcept>
-
-#include "solution.hpp"
+#include <iostream>
+#include <fstream>
 
 // TODO: resolve compilation warnings
+
 
 int32_t main(int32_t argc, char **argv) {
     int32_t retCode{1};
     int totalFrames = 0, correctFrames = 0;
-    cv::Point coneCenter;
-    cv::Mat conesWithCenter;
     
     // Parse the command line parameters as we require the user to specify some mandatory information on startup.
     auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
@@ -71,7 +70,7 @@ int32_t main(int32_t argc, char **argv) {
 
             opendlv::proxy::GroundSteeringRequest gsr;
             opendlv::proxy::AngularVelocityReading avr;
-            std::mutex gsrMutex, avrMutex;
+            std::mutex gsrMutex, vrMutex, avrMutex;
 
             auto onGroundSteeringRequest = [&gsr, &gsrMutex](cluon::data::Envelope &&env){
                 // The envelope data structure provide further details, such as sampleTimePoint as shown in this test case:
@@ -80,16 +79,16 @@ int32_t main(int32_t argc, char **argv) {
                 gsr = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(env));
             };
 
-
-
             auto onAngularVelocityReading = [&avr, &avrMutex](cluon::data::Envelope &&env) {
                 std::lock_guard<std::mutex> lck(avrMutex);
                 avr = cluon::extractMessage<opendlv::proxy::AngularVelocityReading>(std::move(env));
             };
 
+            
             od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
             od4.dataTrigger(opendlv::proxy::AngularVelocityReading::ID(), onAngularVelocityReading);
-            
+
+
             // Endless loop; end the program by pressing Ctrl-C.
             while (od4.isRunning()) {
                 // OpenCV data structure to hold an image.
@@ -105,6 +104,11 @@ int32_t main(int32_t argc, char **argv) {
                     // Copy the pixels from the shared memory into our own data structure.
                     cv::Mat wrapped(HEIGHT, WIDTH, CV_8UC4, sharedMemory->data());
                     img = wrapped.clone();
+
+                    angVelZ = avr.angularVelocityZ();
+
+                    //std::cout << cluon::time::toMicroseconds(sharedMemory->getTimeStamp().second) << " ";
+                    
                 }
                 sharedMemory->unlock();
 
@@ -112,12 +116,19 @@ int32_t main(int32_t argc, char **argv) {
                 {
                     std::lock_guard<std::mutex> lck(gsrMutex);
                     groundSteering = gsr.groundSteering();
+                    //std::cout << groundSteering << " ";
                 }
 
+                // Blacking out the horizon and wires of the car
+                cv::rectangle(img, cv::Point(0, 0), cv::Point(640, 0.45 * 480), cv::Scalar(0, 0, 0), cv::FILLED);
+                cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0, 0, 0), cv::FILLED);
+
+                
                 float calculatedSteering;                
                 
                 if(angVelZ <= 0) {
                     if(angVelZ<-78) angVelZ = -78;
+
                     calculatedSteering = (angVelZ - (-78)) / 78 * 0.3 - 0.3;
                 }else if(angVelZ > 0) {
                     if(angVelZ < 2) 
@@ -125,40 +136,32 @@ int32_t main(int32_t argc, char **argv) {
                     calculatedSteering = ((angVelZ - 1)/100)*0.3; 
                 }
                 
-                // Detecting both color cones [bounding rectangles]
-                // std::vector<cv::Rect> yellowCones = detectCones(filterImage(img, YELLOW_FILTER));
-                // std::vector<cv::Rect> blueCones = detectCones(filterImage(img, BLUE_FILTER));
 
-                // Testing metrics
-                float dGroundSteering = groundSteering == 0 ? ERROR_GROUND_ZERO : groundSteering * ERROR_MULTI;
-                bool calculatedWithinInterval = fabs(groundSteering - calculatedSteering) < dGroundSteering;
+                float dGroundSteering = groundSteering == 0 ? 0.05 : std::abs(0.3 * groundSteering);
+                bool calculatedWithinInterval = std::abs(groundSteering - calculatedSteering) <= dGroundSteering;
 
-                // Blacking out the horizon and wires of the car
-                cv::rectangle(img, cv::Point(0, 0), cv::Point(640, 0.45 * 480), cv::Scalar(0, 0, 0), cv::FILLED);
-                cv::rectangle(img, cv::Point(160, 390), cv::Point(495, 479), cv::Scalar(0, 0, 0), cv::FILLED);
-
-                // Drawing bounding rectangles over detected cones
-                // for (auto &cone : joinVectors(yellowCones, blueCones)) {
-                //     cv::rectangle(img, cv::Point(cone.x, cone.y), cv::Point(cone.x + cone.width, cone.y + cone.height), cv::Scalar(0, 0, 255), 2);
-                // }
 
                 // Display image on your screen.
                 if (VERBOSE) {
+                    
+                    
                     std::cout << "----------- FRAME REPORT -----------" << std::endl;
-                   
                     std::cout << "[GROUND STEERING] Got " << groundSteering << ". Allowed values [" << groundSteering - dGroundSteering << "," << groundSteering + dGroundSteering << "]" << std::endl;
                     std::cout << "[CALCULATED STEERING] Got " << calculatedSteering << ". " << (calculatedWithinInterval ? "[SUCCESS]" : "[FAILURE]") << std::endl;
+
                     totalFrames++;
                     correctFrames += calculatedWithinInterval ? 1 : 0;
-                    std::cout << "[RESULT] Correctly calculated " << (float)(100*correctFrames) / (float)totalFrames << "\% frames" << std::endl;
-                            		
+                    std::cout << "[RESULT] Correctly calculated " << (float)(100 * correctFrames) / (float)totalFrames << "\% frames" << std::endl;
+                
+                    
                     cv::imshow(sharedMemory->name().c_str(), img);
-
                     cv::waitKey(1);
 
+                   
                 }
             }
         }
+
         retCode = 0;
     }
     return retCode;
